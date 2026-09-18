@@ -1,0 +1,28 @@
+.{
+    .name = .zigine,
+    .version = "0.0.0",
+    .fingerprint = 0xa80876d30865fb59,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .glfw_zig = .{
+            .url = "git+https://github.com/tiawl/glfw.zig.git#0c386e13640ce044c88b02b24f5738f45a48fee7",
+            .hash = "glfw_zig-1.0.0-NrvYoxInGgBWOP6zqu31MBtiek0vwBhg-KYyXF356KPC",
+        },
+        .zig_glad = .{
+            .url = "git+https://github.com/jackparsonss/zig.glad#e973c2a302d8217f6f1a65f46f5222892fe26429",
+            .hash = "zig_glad-0.0.4-6OirnjjXBgDv6gERB59NTaXKyaHC9xidaDsn-qSgOZy3",
+        },
+        .zalgebra = .{
+            .url = "git+https://github.com/kooparse/zalgebra#0482fbaf8f17b90b51c333ea60e77dfa12aaf5e2",
+            .hash = "zalgebra-0.0.0-aaiVSoN_AQCWiF1SsKeHX0FxJ2-38OIPsqU9F-cVMQMN",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
+    },
+}
