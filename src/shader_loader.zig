@@ -1,9 +1,9 @@
 const std = @import("std");
 const c = @import("c.zig");
 const zalg = @import("zalgebra");
+
 const glfw = c.glfw;
 const gl = c.glad;
-
 const Io = std.Io;
 
 pub fn loadShaders(

@@ -1,12 +1,13 @@
 const std = @import("std");
 const zalg = @import("zalgebra");
-const glfw = c.glfw;
-const gl = c.glad;
 
 const c = @import("c.zig");
 const shader_loader = @import("shader_loader.zig");
 const Triangle = @import("gl_objects/triangle.zig").Triangle;
+const Axis = @import("gl_objects/axis.zig").Axis;
 
+const glfw = c.glfw;
+const gl = c.glad;
 const Io = std.Io;
 
 pub fn run(io: Io, allocator: std.mem.Allocator) !void {
@@ -44,12 +45,11 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
     const projection = zalg.Mat4.perspective(45.0, 4.0 / 3.0, 0.1, 100.0);
     const view = zalg.Mat4.lookAt(
-        zalg.Vec3.new(0, 0, 3), // pos
+        zalg.Vec3.new(5, 5, 5), // pos
         zalg.Vec3.new(0, 0, 0), // look at origin
         zalg.Vec3.new(0, 1, 0), // up vector
     );
-    const model = zalg.Mat4.fromTranslate(zalg.Vec3.new(0, 0, 0));
-    const mvp = zalg.Mat4.mul(projection, zalg.Mat4.mul(view, model));
+    const view_projection = zalg.Mat4.mul(projection, view);
 
     gl.glClearColor(0.1, 0.1, 0.1, 1.0);
 
@@ -57,9 +57,25 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     try triangle.initialize(io, allocator);
     defer triangle.cleanup();
 
+    var axis: Axis = .{};
+    try axis.initialize(io, allocator);
+    defer axis.cleanup();
+
+    var z_offset: f32 = -1.0;
+    var direction: f32 = -1.0;
+
     while (glfw.glfwWindowShouldClose(window) == 0) {
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
-        triangle.render(mvp);
+
+        if (z_offset <= -2.0 and direction == -1.0) direction = 1.0;
+        if (z_offset >= 2.0 and direction == 1.0) direction = -1.0;
+        z_offset += 0.1 * direction;
+
+        triangle.position = zalg.Vec3.new(0, 0, z_offset);
+        triangle.render(view_projection);
+
+        axis.render(view_projection);
+
         glfw.glfwPollEvents();
         glfw.glfwSwapBuffers(window);
     }

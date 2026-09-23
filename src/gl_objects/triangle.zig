@@ -1,11 +1,11 @@
 const std = @import("std");
 const zalg = @import("zalgebra");
-const glfw = c.glfw;
-const gl = c.glad;
 
 const c = @import("../c.zig");
 const shader_loader = @import("../shader_loader.zig");
 
+const glfw = c.glfw;
+const gl = c.glad;
 const Io = std.Io;
 
 /// A structure for visualizing the triangle.
@@ -30,6 +30,9 @@ pub const Triangle = struct {
         0.0, 0.0, 1.0,
     },
 
+    position: zalg.Vec3 = zalg.Vec3.new(0, 0, 0),
+    rotation_angle: f32 = 0.0,
+
     // OpenGL buffers
     vertex_array_id: gl.GLuint = 0,
     vertex_buffer_id: gl.GLuint = 0,
@@ -41,7 +44,7 @@ pub const Triangle = struct {
 
     const Self = @This();
 
-    pub fn initialize(self: *Self, io: Io, allocator: std.mem.Allocator) void {
+    pub fn initialize(self: *Self, io: Io, allocator: std.mem.Allocator) !void {
         // Create a vertex array object
         gl.glGenVertexArrays(1, &self.vertex_array_id);
         gl.glBindVertexArray(self.vertex_array_id);
@@ -67,7 +70,7 @@ pub const Triangle = struct {
         );
 
         // Create and compile our GLSL program from the shaders
-        self.program_id = shader_loader.loadShaders(
+        self.program_id = try shader_loader.loadShaders(
             io,
             allocator,
             "assets/triangle.vert",
@@ -81,7 +84,11 @@ pub const Triangle = struct {
         self.mvp_matrix_id = gl.glGetUniformLocation(self.program_id, "mvp");
     }
 
-    pub fn render(self: *Self, camera_matrix: zalg.Mat4) void {
+    pub fn render(self: *Self, view_projection: zalg.Mat4) void {
+        const model = zalg.Mat4.fromTranslate(self.position)
+            .mul(zalg.Mat4.fromRotation(self.rotation_angle, zalg.Vec3.new(0, 1, 0)));
+        const mvp = zalg.Mat4.mul(view_projection, model);
+
         gl.glUseProgram(self.program_id);
 
         gl.glEnableVertexAttribArray(0);
@@ -92,10 +99,8 @@ pub const Triangle = struct {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.color_buffer_id);
         gl.glVertexAttribPointer(1, 3, gl.GL_FLOAT, gl.GL_FALSE, 0, null);
 
-        var mvp = camera_matrix;
-        gl.glUniformMatrix4fv(self.mvp_matrix_id, 1, gl.GL_FALSE, @ptrCast(&mvp.data[0][0]));
-
         // Draw the lines
+        gl.glUniformMatrix4fv(self.mvp_matrix_id, 1, gl.GL_FALSE, @ptrCast(&mvp.data[0][0]));
         gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
 
         gl.glDisableVertexAttribArray(0);
