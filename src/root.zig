@@ -7,16 +7,16 @@ const Triangle = @import("graphics/gl_objects/triangle.zig").Triangle;
 const Axis = @import("graphics/gl_objects/axis.zig").Axis;
 const Cube = @import("graphics/gl_objects/cube.zig").Cube;
 const Building = @import("graphics/gl_objects/building.zig").Building;
+const Skybox = @import("graphics/gl_objects/skybox.zig").Skybox;
 
 const glfw = c.glfw;
 const gl = c.glad;
 const Io = std.Io;
 
-// Camera state, mutated by keyCallback
 var viewPolar: f32 = std.math.pi / 4.0; // start at 45 degrees
 var viewAzimuth: f32 = std.math.pi / 4.0;
-var viewDistance: f32 = 8.66; // ~ sqrt(5*5 + 5*5 + 5*5)
-var eye_center: zalg.Vec3 = zalg.Vec3.new(5, 5, 5);
+var viewDistance: f32 = 17.32;
+var eye_center: zalg.Vec3 = zalg.Vec3.new(10, 10, 10);
 
 pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     _ = glfw.glfwSetErrorCallback(errorCallback);
@@ -38,7 +38,6 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     }
     defer glfw.glfwDestroyWindow(window);
 
-    // Ensure we can capture the escape key being pressed below
     glfw.glfwSetInputMode(window, glfw.GLFW_STICKY_KEYS, glfw.GL_TRUE);
     _ = glfw.glfwSetKeyCallback(window, keyCallback);
 
@@ -73,6 +72,10 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     try axis.initialize(io, allocator);
     defer axis.cleanup();
 
+    var skybox: Skybox = .{};
+    try skybox.initialize(io, allocator, "assets/textures/sky.png");
+    defer skybox.cleanup();
+
     // var cube: Cube = .{};
     // try cube.initialize(io, allocator);
     // defer cube.cleanup();
@@ -82,7 +85,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
         io,
         allocator,
         zalg.Vec3{ .data = .{ 0, 0, 0 } },
-        zalg.Vec3{ .data = .{ 1, 4, 1 } },
+        zalg.Vec3{ .data = .{ 1, 2, 1 } },
         "assets/textures/facade0.jpg",
     );
     defer building.cleanup();
@@ -95,7 +98,6 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
         updateCamera();
 
-        // Recompute view each frame since eye_center can change via keyCallback
         const view = zalg.Mat4.lookAt(
             eye_center,
             zalg.Vec3.new(0, 0, 0), // look at origin
@@ -109,6 +111,8 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
         triangle.position = zalg.Vec3.new(0, 0, z_offset);
 
+        skybox.render(view, projection);
+
         triangle.render(view_projection);
         axis.render(view_projection);
         // cube.render(view_projection);
@@ -119,7 +123,6 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     }
 }
 
-// Track which keys are currently held down
 var keys_down: [glfw.GLFW_KEY_LAST + 1]bool = [_]bool{false} ** (glfw.GLFW_KEY_LAST + 1);
 
 fn keyCallback(
@@ -140,18 +143,6 @@ fn keyCallback(
         }
     }
 
-    if (key == glfw.GLFW_KEY_R and action == glfw.GLFW_PRESS) {
-        std.debug.print("Reset.\n", .{});
-    }
-
-    if (key == glfw.GLFW_KEY_SPACE and action == glfw.GLFW_PRESS) {
-        std.debug.print("space pressed\n", .{});
-    }
-
-    if (key == glfw.GLFW_KEY_A and action == glfw.GLFW_PRESS) {
-        std.debug.print("(A) key pressed\n", .{});
-    }
-
     if (key == glfw.GLFW_KEY_ESCAPE and action == glfw.GLFW_PRESS) {
         glfw.glfwSetWindowShouldClose(window, gl.GL_TRUE);
     }
@@ -160,32 +151,51 @@ fn keyCallback(
 const polar_min: f32 = 0.01;
 const polar_max: f32 = std.math.pi - 0.01;
 
+const view_distance_min: f32 = 1.0;
+const view_distance_max: f32 = 100.0;
+const view_distance_speed: f32 = 0.2;
+
 fn updateCamera() void {
-    var polar_changed = false;
-    var azimuth_changed = false;
+    var camera_changed = false;
 
-    if (keys_down[glfw.GLFW_KEY_UP]) {
+    if (keys_down[glfw.GLFW_KEY_UP] or keys_down[glfw.GLFW_KEY_W]) {
         viewPolar -= 0.05;
-        polar_changed = true;
+        camera_changed = true;
     }
-    if (keys_down[glfw.GLFW_KEY_DOWN]) {
+
+    if (keys_down[glfw.GLFW_KEY_DOWN] or keys_down[glfw.GLFW_KEY_S]) {
         viewPolar += 0.05;
-        polar_changed = true;
+        camera_changed = true;
     }
-    if (keys_down[glfw.GLFW_KEY_LEFT]) {
+
+    if (keys_down[glfw.GLFW_KEY_LEFT] or keys_down[glfw.GLFW_KEY_A]) {
         viewAzimuth -= 0.05;
-        azimuth_changed = true;
+        camera_changed = true;
     }
-    if (keys_down[glfw.GLFW_KEY_RIGHT]) {
+
+    if (keys_down[glfw.GLFW_KEY_RIGHT] or keys_down[glfw.GLFW_KEY_D]) {
         viewAzimuth += 0.05;
-        azimuth_changed = true;
+        camera_changed = true;
     }
 
-    if (polar_changed) {
-        viewPolar = std.math.clamp(viewPolar, polar_min, polar_max);
+    if (keys_down[glfw.GLFW_KEY_Z]) {
+        viewDistance -= view_distance_speed;
+        camera_changed = true;
     }
 
-    if (polar_changed or azimuth_changed) {
+    if (keys_down[glfw.GLFW_KEY_X]) {
+        viewDistance += view_distance_speed;
+        camera_changed = true;
+    }
+
+    viewPolar = std.math.clamp(viewPolar, polar_min, polar_max);
+    viewDistance = std.math.clamp(
+        viewDistance,
+        view_distance_min,
+        view_distance_max,
+    );
+
+    if (camera_changed) {
         eye_center = zalg.Vec3.new(
             viewDistance * @sin(viewPolar) * @cos(viewAzimuth),
             viewDistance * @cos(viewPolar),
