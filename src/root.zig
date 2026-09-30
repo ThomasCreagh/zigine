@@ -2,10 +2,11 @@ const std = @import("std");
 const zalg = @import("zalgebra");
 
 const c = @import("c.zig");
-const shader_loader = @import("shader_loader.zig");
-const Triangle = @import("gl_objects/triangle.zig").Triangle;
-const Axis = @import("gl_objects/axis.zig").Axis;
-const Cube = @import("gl_objects/cube.zig").Cube;
+
+const Triangle = @import("graphics/gl_objects/triangle.zig").Triangle;
+const Axis = @import("graphics/gl_objects/axis.zig").Axis;
+const Cube = @import("graphics/gl_objects/cube.zig").Cube;
+const Building = @import("graphics/gl_objects/building.zig").Building;
 
 const glfw = c.glfw;
 const gl = c.glad;
@@ -62,7 +63,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
     const projection = zalg.Mat4.perspective(45.0, aspect, 0.1, 100.0);
 
-    gl.glClearColor(0.1, 0.1, 0.1, 1.0);
+    gl.glClearColor(0.3, 0.4, 0.5, 0.0);
 
     var triangle: Triangle = .{};
     try triangle.initialize(io, allocator);
@@ -72,9 +73,19 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     try axis.initialize(io, allocator);
     defer axis.cleanup();
 
-    var cube: Cube = .{};
-    try cube.initialize(io, allocator);
-    defer cube.cleanup();
+    // var cube: Cube = .{};
+    // try cube.initialize(io, allocator);
+    // defer cube.cleanup();
+
+    var building: Building = .{};
+    try building.initialize(
+        io,
+        allocator,
+        zalg.Vec3{ .data = .{ 0, 0, 0 } },
+        zalg.Vec3{ .data = .{ 1, 4, 1 } },
+        "assets/textures/facade0.jpg",
+    );
+    defer building.cleanup();
 
     var z_offset: f32 = -1.0;
     var direction: f32 = -1.0;
@@ -100,7 +111,8 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
         triangle.render(view_projection);
         axis.render(view_projection);
-        cube.render(view_projection);
+        // cube.render(view_projection);
+        building.render(view_projection);
 
         glfw.glfwPollEvents();
         glfw.glfwSwapBuffers(window);
@@ -145,6 +157,9 @@ fn keyCallback(
     }
 }
 
+const polar_min: f32 = 0.01;
+const polar_max: f32 = std.math.pi - 0.01;
+
 fn updateCamera() void {
     var polar_changed = false;
     var azimuth_changed = false;
@@ -166,11 +181,15 @@ fn updateCamera() void {
         azimuth_changed = true;
     }
 
+    if (polar_changed) {
+        viewPolar = std.math.clamp(viewPolar, polar_min, polar_max);
+    }
+
     if (polar_changed or azimuth_changed) {
         eye_center = zalg.Vec3.new(
-            viewDistance * std.math.cos(viewAzimuth),
-            viewDistance * std.math.cos(viewPolar),
-            viewDistance * std.math.sin(viewAzimuth),
+            viewDistance * @sin(viewPolar) * @cos(viewAzimuth),
+            viewDistance * @cos(viewPolar),
+            viewDistance * @sin(viewPolar) * @sin(viewAzimuth),
         );
     }
 }

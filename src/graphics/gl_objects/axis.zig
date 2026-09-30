@@ -1,32 +1,40 @@
 const std = @import("std");
 const zalg = @import("zalgebra");
 
-const c = @import("../c.zig");
+const c = @import("../../c.zig");
 const shader_loader = @import("../shader_loader.zig");
 
 const glfw = c.glfw;
 const gl = c.glad;
 const Io = std.Io;
 
-/// A structure for visualizing the triangle.
-pub const Triangle = struct {
-    vertex_buffer_data: [9]gl.GLfloat = .{
+/// A structure for visualizing the global 3D coordinate system.
+pub const Axis = struct {
+    vertex_buffer_data: [18]gl.GLfloat = .{
         // X axis
-        -0.5, -0.5, 0.0,
+        0.0, 0.0, 0.0,
+        2.0, 0.0, 0.0,
 
         // Y axis
-        0.5,  -0.5, 0.0,
+        0.0, 0.0, 0.0,
+        0.0, 2.0, 0.0,
 
         // Z axis
-        0.0,  0.5,  0.0,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 2.0,
     },
 
-    color_buffer_data: [9]gl.GLfloat = .{
-        // red
+    color_buffer_data: [18]gl.GLfloat = .{
+        // X, red
         1.0, 0.0, 0.0,
-        // green
+        1.0, 0.0, 0.0,
+
+        // Y, green
         0.0, 1.0, 0.0,
-        // blue
+        0.0, 1.0, 0.0,
+
+        // Z, blue
+        0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
     },
 
@@ -73,15 +81,15 @@ pub const Triangle = struct {
         self.program_id = try shader_loader.loadShaders(
             io,
             allocator,
-            "assets/triangle.vert",
-            "assets/triangle.frag",
+            "assets/shaders/axis.vert",
+            "assets/shaders/axis.frag",
         );
         if (self.program_id == 0) {
             std.debug.print("Failed to load shaders.\n", .{});
         }
 
         // Get a handle for our "MVP" uniform
-        self.mvp_matrix_id = gl.glGetUniformLocation(self.program_id, "mvp");
+        self.mvp_matrix_id = gl.glGetUniformLocation(self.program_id, "MVP");
     }
 
     pub fn render(self: *Self, view_projection: zalg.Mat4) void {
@@ -101,7 +109,7 @@ pub const Triangle = struct {
 
         // Draw the lines
         gl.glUniformMatrix4fv(self.mvp_matrix_id, 1, gl.GL_FALSE, @ptrCast(&mvp.data[0][0]));
-        gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3);
+        gl.glDrawArrays(gl.GL_LINES, 0, 6);
 
         gl.glDisableVertexAttribArray(0);
         gl.glDisableVertexAttribArray(1);

@@ -26,7 +26,14 @@ pub fn build(b: *std.Build) void {
 
     mod.linkLibrary(glfw_dep.artifact("glfw"));
     mod.linkLibrary(glad_dep.artifact("glad"));
+
     mod.addImport("zalgebra", zalgebra.module("zalgebra"));
+
+    mod.addIncludePath(b.path("external/stb"));
+    mod.addCSourceFile(.{
+        .file = b.path("external/stb/stb_image.c"),
+    });
+    mod.link_libc = true;
 
     if (b.graph.environ_map.get("GL_HEADERS")) |gl_headers| {
         mod.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ gl_headers, "include" }) });
