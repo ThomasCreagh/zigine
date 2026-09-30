@@ -8,7 +8,6 @@ const glfw = c.glfw;
 const gl = c.glad;
 const Io = std.Io;
 
-/// A structure for visualizing the global 3D coordinate system.
 pub const Cube = struct {
     vertex_buffer_data: [72]gl.GLfloat = .{
         // Front face

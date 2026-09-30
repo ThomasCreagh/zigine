@@ -8,7 +8,7 @@ const glfw = c.glfw;
 const gl = c.glad;
 const Io = std.Io;
 
-/// A structure for visualizing the global 3D coordinate system.
+// A structure for visualizing the global 3D coordinate system.
 pub const Axis = struct {
     vertex_buffer_data: [18]gl.GLfloat = .{
         // X axis

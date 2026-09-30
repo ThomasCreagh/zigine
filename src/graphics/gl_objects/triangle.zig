@@ -8,7 +8,6 @@ const glfw = c.glfw;
 const gl = c.glad;
 const Io = std.Io;
 
-/// A structure for visualizing the triangle.
 pub const Triangle = struct {
     vertex_buffer_data: [9]gl.GLfloat = .{
         // X axis
