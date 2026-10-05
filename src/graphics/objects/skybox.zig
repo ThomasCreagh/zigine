@@ -238,7 +238,7 @@ pub const Skybox = struct {
         }
     }
 
-    pub fn cleanup(self: *Self) void {
+    pub fn deinit(self: *Self) void {
         gl.glDeleteBuffers(1, &self.vertex_buffer_id);
         gl.glDeleteBuffers(1, &self.index_buffer_id);
         gl.glDeleteBuffers(1, &self.uv_buffer_id);
