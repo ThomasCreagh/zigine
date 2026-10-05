@@ -80,7 +80,7 @@ pub const Triangle = struct {
         }
 
         // Get a handle for our "MVP" uniform
-        self.mvp_matrix_id = gl.glGetUniformLocation(self.program_id, "mvp");
+        self.mvp_matrix_id = gl.glGetUniformLocation(self.program_id, "MVP");
     }
 
     pub fn render(self: *Self, view_projection: zalg.Mat4) void {
@@ -106,7 +106,7 @@ pub const Triangle = struct {
         gl.glDisableVertexAttribArray(1);
     }
 
-    pub fn cleanup(self: *Self) void {
+    pub fn deinit(self: *Self) void {
         gl.glDeleteBuffers(1, &self.vertex_buffer_id);
         gl.glDeleteBuffers(1, &self.color_buffer_id);
         gl.glDeleteVertexArrays(1, &self.vertex_array_id);

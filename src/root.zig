@@ -6,6 +6,7 @@ const c = @import("c.zig");
 const Triangle = @import("graphics/gl_objects/triangle.zig").Triangle;
 const Axis = @import("graphics/gl_objects/axis.zig").Axis;
 const Cube = @import("graphics/gl_objects/cube.zig").Cube;
+const Plane = @import("graphics/gl_objects/plane.zig").Plane;
 const Building = @import("graphics/gl_objects/building.zig").Building;
 const Skybox = @import("graphics/gl_objects/skybox.zig").Skybox;
 
@@ -52,7 +53,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
     gl.glEnable(gl.GL_DEPTH_TEST);
     gl.glDepthFunc(gl.GL_LESS);
-    gl.glEnable(gl.GL_CULL_FACE);
+    // gl.glEnable(gl.GL_CULL_FACE);
 
     var fb_w: c_int = 0;
     var fb_h: c_int = 0;
@@ -66,19 +67,24 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
     var triangle: Triangle = .{};
     try triangle.initialize(io, allocator);
-    defer triangle.cleanup();
+    defer triangle.deinit();
 
     var axis: Axis = .{};
     try axis.initialize(io, allocator);
-    defer axis.cleanup();
+    defer axis.deinit();
 
     var skybox: Skybox = .{};
     try skybox.initialize(io, allocator, "assets/textures/sky.png");
-    defer skybox.cleanup();
+    defer skybox.deinit();
 
-    // var cube: Cube = .{};
-    // try cube.initialize(io, allocator);
-    // defer cube.cleanup();
+    var plane: Plane = .{};
+    try plane.initialize(
+        io,
+        allocator,
+        zalg.Vec3{ .data = .{ 0, 0, 0 } },
+        zalg.Vec3{ .data = .{ 10, 1, 10 } },
+    );
+    defer plane.deinit();
 
     var building: Building = .{};
     try building.initialize(
@@ -88,7 +94,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
         zalg.Vec3{ .data = .{ 1, 2, 1 } },
         "assets/textures/facade0.jpg",
     );
-    defer building.cleanup();
+    defer building.deinit();
 
     var z_offset: f32 = -1.0;
     var direction: f32 = -1.0;
@@ -113,9 +119,9 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
         skybox.render(view, projection);
 
-        triangle.render(view_projection);
-        axis.render(view_projection);
-        // cube.render(view_projection);
+        // triangle.render(view_projection);
+        // axis.render(view_projection);
+        plane.render(view_projection);
         building.render(view_projection);
 
         glfw.glfwPollEvents();

@@ -3,20 +3,15 @@ const zalg = @import("zalgebra");
 
 const c = @import("../../c.zig");
 const shader_loader = @import("../shader_loader.zig");
-const buffer = @import("buffer.zig");
 
-const glfw = c.glfw;
 const gl = c.glad;
-const Io = std.Io;
 
 pub const VertexArray = struct {
     id: u32,
-    vbo: buffer.VertexBuffer,
-    ibo: buffer.IndexBuffer,
 
     const Self = @This();
 
-    pub fn init(vertices: []const f32, indices: []const u32) Self {
+    pub fn init() Self {
         var vao: u32 = 0;
 
         gl.glGenVertexArrays(1, &vao);
@@ -24,8 +19,6 @@ pub const VertexArray = struct {
 
         return .{
             .id = vao,
-            .vbo = buffer.VertexBuffer.init(vertices),
-            .ibo = buffer.IndexBuffer.init(indices),
         };
     }
 
@@ -36,5 +29,26 @@ pub const VertexArray = struct {
     pub fn unbind(self: Self) void {
         _ = self;
         gl.glBindVertexArray(0);
+    }
+
+    pub fn deinit(self: Self) void {
+        gl.glDeleteVertexArrays(1, self.id);
+    }
+
+    pub fn enableAttrib(
+        self: Self,
+        index: u32,
+        size: i32,
+    ) void {
+        self.bind();
+        gl.glEnableVertexAttribArray(index);
+        gl.glVertexAttribPointer(
+            index,
+            size,
+            gl.GL_FLOAT,
+            gl.GL_FALSE,
+            0,
+            null,
+        );
     }
 };
