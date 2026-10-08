@@ -162,7 +162,10 @@ texture_id: gl.GLuint = 0,
 mvp_matrix_id: gl.GLint = 0,
 texture_sampler_id: gl.GLint = 0,
 program: Shader,
+
 rng: std.Random.IoSource,
+velocity: f32 = 0,
+target_velocity: f32 = 0,
 
 pub fn init(
     io: Io,
@@ -269,23 +272,31 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
     );
 }
 
-pub fn update(ptr: *anyopaque, _: f32) void {
+pub fn update(ptr: *anyopaque, dt: f32) void {
     const self: *MovingBuilding = @ptrCast(@alignCast(ptr));
-
     const rand = self.rng.interface();
 
-    const move =
-        @as(f32, @floatFromInt(
-            rand.intRangeAtMost(i32, -1000, 1000),
-        )) / 100000.0;
+    const curve: f32 = 2.0;
+    const dir_change_sec: f32 = 2.0;
+    const move_speed: f32 = 0.5;
 
-    if (self.transform.scale.data[1] + move >= 0) {
-        self.transform.scale.data[1] += move;
+    if (rand.float(f32) < 1.0 - @exp(-dir_change_sec * dt)) {
+        self.target_velocity = rand.float(f32) * dir_change_sec - 1.0;
     }
-    self.transform.position.data[1] =
-        self.transform.scale.data[1];
+
+    const smooth = 1.0 - @exp(-curve * dt);
+
+    self.velocity +=
+        (self.target_velocity - self.velocity) * smooth;
+
+    const move = self.velocity * move_speed * dt;
+
+    self.transform.scale.data[1] =
+        @max(1.0, self.transform.scale.data[1] + move);
 
     const y_scale = self.transform.scale.data[1];
+
+    self.transform.position.data[1] = y_scale;
 
     for (0..16) |i| {
         const uv_index = i * 2;
