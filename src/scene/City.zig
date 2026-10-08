@@ -1,4 +1,5 @@
 const std = @import("std");
+const zalg = @import("zalgebra");
 const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
@@ -42,14 +43,15 @@ pub fn init(
         },
     };
     try self.camera.init();
+    self.camera.transform.position = zalg.Vec3.new(25, 25, 25);
 
     const plane = try Plane.init(io, allocator);
     errdefer plane.sceneObject().deinit(allocator);
-    plane.transform.scale.data[0] = 10;
-    plane.transform.scale.data[2] = 10;
+    plane.transform.scale.data[0] = 9;
+    plane.transform.scale.data[2] = 9;
 
-    plane.transform.position.data[0] = -4;
-    plane.transform.position.data[2] = -4;
+    plane.transform.position.data[0] = 7;
+    plane.transform.position.data[2] = 7;
 
     try self.scene_objects.append(allocator, plane.sceneObject());
 
@@ -61,18 +63,22 @@ pub fn init(
     errdefer skybox.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, skybox.sceneObject());
 
-    // const moving_building = try MovingBuilding.init(
-    //     io,
-    //     allocator,
-    //     "assets/textures/facade0.jpg",
-    // );
-    // errdefer moving_building.sceneObject().deinit(allocator);
-    // try self.scene_objects.append(allocator, moving_building.sceneObject());
+    const axis = try Axis.init(
+        io,
+        allocator,
+    );
+    errdefer axis.sceneObject().deinit(allocator);
+    axis.transform.scale = axis.transform.scale.scale(10);
+    axis.enable = false;
+    try self.scene_objects.append(allocator, axis.sceneObject());
+
     const rng_impl: std.Random.IoSource = .{ .io = io };
     const rand = rng_impl.interface();
 
-    for (0..4) |i| {
-        for (0..4) |j| {
+    const spacing_scaler: f32 = 3.14;
+
+    for (0..5) |i| {
+        for (0..5) |j| {
             const tex = rand.intRangeAtMost(u8, 0, 5);
 
             const file_name = try std.fmt.allocPrintSentinel(allocator, "assets/textures/facade{}.jpg", .{tex}, 0);
@@ -82,16 +88,26 @@ pub fn init(
                 allocator,
                 file_name,
             );
+            moving_building.transform.scale.data[1] = 1 + (rand.float(f32) * 5);
             errdefer moving_building.sceneObject().deinit(allocator);
 
-            const rot: f32 = @as(f32, @floatFromInt(rand.intRangeAtMost(i32, 0, 360)));
-            const x_dif: f32 = @as(f32, @floatFromInt(rand.intRangeAtMost(i32, 0, 1000))) / 1000.0;
-            const z_dif: f32 = @as(f32, @floatFromInt(rand.intRangeAtMost(i32, 0, 1000))) / 1000.0;
+            const rot: f32 = @as(
+                f32,
+                @floatFromInt(rand.intRangeAtMost(i32, -30, 30)),
+            );
+            const x_dif: f32 = @as(
+                f32,
+                @floatFromInt(rand.intRangeAtMost(i32, 0, 1000)),
+            ) / 1000.0;
+            const z_dif: f32 = @as(
+                f32,
+                @floatFromInt(rand.intRangeAtMost(i32, 0, 1000)),
+            ) / 1000.0;
 
             moving_building.transform.rotation.data[1] += rot;
 
-            moving_building.transform.position.data[0] += (@as(f32, @floatFromInt(i * 4)) - (4 * 2)) + x_dif;
-            moving_building.transform.position.data[2] += (@as(f32, @floatFromInt(j * 4)) - (4 * 2)) + z_dif;
+            moving_building.transform.position.data[0] += (@as(f32, @floatFromInt(i)) * spacing_scaler) + x_dif;
+            moving_building.transform.position.data[2] += (@as(f32, @floatFromInt(j)) * spacing_scaler) + z_dif;
             try self.scene_objects.append(allocator, moving_building.sceneObject());
         }
     }
