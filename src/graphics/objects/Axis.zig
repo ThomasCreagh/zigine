@@ -3,24 +3,25 @@ const zalg = @import("zalgebra");
 
 const c = @import("../../c.zig");
 const Transform = @import("../Transform.zig");
-const Shader = @import("../Shader.zig");
+const Shader = @import("../opengl/Shader.zig");
 const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const SceneObject = @import("../SceneObject.zig");
 
 const gl = c.glad;
 const Io = std.Io;
+const Allocator = std.mem.Allocator;
+
 const Axis = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
+    .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
 };
 
-transform: Transform = .{},
-
-vertex_buffer_data: [18]gl.GLfloat = .{
+const vertex_buffer_data: [18]gl.GLfloat = .{
     // X axis
     0.0, 0.0, 0.0,
     2.0, 0.0, 0.0,
@@ -32,9 +33,9 @@ vertex_buffer_data: [18]gl.GLfloat = .{
     // Z axis
     0.0, 0.0, 0.0,
     0.0, 0.0, 2.0,
-},
+};
 
-colour_buffer_data: [18]gl.GLfloat = .{
+const colour_buffer_data: [18]gl.GLfloat = .{
     // X, red
     1.0, 0.0, 0.0,
     1.0, 0.0, 0.0,
@@ -46,7 +47,10 @@ colour_buffer_data: [18]gl.GLfloat = .{
     // Z, blue
     0.0, 0.0, 1.0,
     0.0, 0.0, 1.0,
-},
+};
+
+transform: Transform = .{},
+enable: bool = true,
 
 vao: VertexArray,
 position_vbo: VertexBuffer,
@@ -56,30 +60,51 @@ colour_vbo: VertexBuffer,
 mvp_matrix_id: gl.GLint = 0,
 program: Shader,
 
-pub fn init(self: *Axis, io: Io, allocator: std.mem.Allocator) !void {
-    self.vao = VertexArray.init();
+pub fn init(io: Io, allocator: std.mem.Allocator) !*Axis {
+    const self = try allocator.create(Axis);
+    errdefer allocator.destroy(self);
 
-    self.position_vbo = VertexBuffer.init(&self.vertex_buffer_data);
-    self.position_vbo.bind();
-    self.vao.enableAttrib(0, 3);
+    const vao = VertexArray.init();
+    errdefer vao.deinit();
 
-    self.colour_vbo = VertexBuffer.init(&self.colour_buffer_data);
-    self.colour_vbo.bind();
-    self.vao.enableAttrib(1, 3);
+    const position_vbo = VertexBuffer.init(&vertex_buffer_data);
+    errdefer position_vbo.deinit();
 
-    self.program = try Shader.init(
+    position_vbo.bind();
+    vao.enableAttrib(0, 3);
+
+    const colour_vbo = VertexBuffer.init(&colour_buffer_data);
+    errdefer colour_vbo.deinit();
+
+    colour_vbo.bind();
+    vao.enableAttrib(1, 3);
+
+    const program = try Shader.init(
         io,
         allocator,
         "assets/shaders/axis.vert",
         "assets/shaders/axis.frag",
     );
+    errdefer program.deinit();
 
-    // Get a handle for our "MVP" uniform
-    self.mvp_matrix_id = gl.glGetUniformLocation(self.program.id, "MVP");
+    const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
+
+    self.* = .{
+        .vao = vao,
+        .position_vbo = position_vbo,
+        .colour_vbo = colour_vbo,
+        .program = program,
+        .mvp_matrix_id = mvp_matrix_id,
+    };
+
+    return self;
 }
 
 pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
     const self: *Axis = @ptrCast(@alignCast(ptr));
+
+    if (self.enable == false) return;
+
     const model = self.transform.matrix();
 
     const view_projection = zalg.Mat4.mul(projection, view);
@@ -97,6 +122,8 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
     gl.glDrawArrays(gl.GL_LINES, 0, 6);
 }
 
+pub fn update(_: *anyopaque, _: f32) void {}
+
 pub fn getTransform(ptr: *anyopaque) *Transform {
     const self: *Axis = @ptrCast(@alignCast(ptr));
     return &self.transform;
@@ -109,10 +136,11 @@ pub fn sceneObject(self: *Axis) SceneObject {
     };
 }
 
-pub fn deinit(ptr: *anyopaque) void {
+pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     const self: *Axis = @ptrCast(@alignCast(ptr));
     self.vao.deinit();
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
     self.program.deinit();
+    allocator.destroy(self);
 }

@@ -14,8 +14,6 @@ pub const VTable = struct {
     ) void,
     render: *const fn (
         *anyopaque,
-        zalg.Mat4,
-        zalg.Mat4,
     ) void,
     deinit: *const fn (*anyopaque, Allocator) void,
 };

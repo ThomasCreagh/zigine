@@ -2,7 +2,6 @@ const std = @import("std");
 const zalg = @import("zalgebra");
 
 const c = @import("../../c.zig");
-const shader_loader = @import("../shader_loader.zig");
 
 const glfw = c.glfw;
 const gl = c.glad;
@@ -19,7 +18,7 @@ pub const VertexBuffer = struct {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo.id);
         gl.glBufferData(
             gl.GL_ARRAY_BUFFER,
-            vertices.len * @sizeOf(f32),
+            @intCast(vertices.len * @sizeOf(f32)),
             vertices.ptr,
             gl.GL_STATIC_DRAW,
         );
@@ -36,7 +35,7 @@ pub const VertexBuffer = struct {
     }
 
     pub fn deinit(self: Self) void {
-        gl.glDeleteBuffers(1, self.id);
+        gl.glDeleteBuffers(1, &self.id);
     }
 };
 
@@ -52,8 +51,8 @@ pub const IndexBuffer = struct {
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ibo.id);
         gl.glBufferData(
             gl.GL_ELEMENT_ARRAY_BUFFER,
-            indices.len * @sizeOf(i32),
-            &indices,
+            @intCast(indices.len * @sizeOf(u32)),
+            indices.ptr,
             gl.GL_STATIC_DRAW,
         );
         return ibo;
@@ -69,6 +68,6 @@ pub const IndexBuffer = struct {
     }
 
     pub fn deinit(self: Self) void {
-        gl.glDeleteBuffers(1, self.id);
+        gl.glDeleteBuffers(1, &self.id);
     }
 };
