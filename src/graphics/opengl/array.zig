@@ -2,7 +2,6 @@ const std = @import("std");
 const zalg = @import("zalgebra");
 
 const c = @import("../../c.zig");
-const shader_loader = @import("../shader_loader.zig");
 
 const gl = c.glad;
 
@@ -32,7 +31,7 @@ pub const VertexArray = struct {
     }
 
     pub fn deinit(self: Self) void {
-        gl.glDeleteVertexArrays(1, self.id);
+        gl.glDeleteVertexArrays(1, &self.id);
     }
 
     pub fn enableAttrib(
