@@ -50,9 +50,9 @@ colour_vbo: VertexBuffer,
 
 // Shader variable IDs
 mvp_matrix_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
 
-pub fn init(io: Io, allocator: std.mem.Allocator) !*Triangle {
+pub fn init(allocator: std.mem.Allocator, program: *Shader) !*Triangle {
     const self = try allocator.create(Triangle);
     errdefer allocator.destroy(self);
 
@@ -70,14 +70,6 @@ pub fn init(io: Io, allocator: std.mem.Allocator) !*Triangle {
 
     colour_vbo.bind();
     vao.enableAttrib(1, 3);
-
-    const program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/triangle.vert",
-        "assets/shaders/triangle.frag",
-    );
-    errdefer program.deinit();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
@@ -133,6 +125,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.vao.deinit();
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
-    self.program.deinit();
     allocator.destroy(self);
 }

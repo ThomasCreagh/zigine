@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
+const ShaderManager = @import("../graphics/ShaderManager.zig");
 const Camera = @import("../graphics/Camera.zig");
 const Axis = @import("../graphics/objects/Axis.zig");
 const Window = @import("../Window.zig");
@@ -22,14 +23,18 @@ const vtable: Scene.VTable = .{
 
 camera: Camera,
 scene_objects: ArrayList(SceneObjects) = .empty,
+shaders: ShaderManager = undefined,
 
 pub fn init(
     io: Io,
     allocator: Allocator,
     window: *Window,
     input: *Input,
-) !BasicAxis {
-    var self: BasicAxis = .{
+) !*BasicAxis {
+    const self = try allocator.create(BasicAxis);
+    errdefer allocator.destroy(self);
+
+    self.* = .{
         .camera = .{
             .window = window,
             .input = input,
@@ -37,7 +42,10 @@ pub fn init(
     };
     try self.camera.init();
 
-    const axis = try Axis.init(io, allocator);
+    self.shaders = try ShaderManager.init(io, allocator);
+    errdefer self.shaders.deinit();
+
+    const axis = try Axis.init(allocator, &self.shaders.axis);
     errdefer axis.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, axis.sceneObject());
 
@@ -79,4 +87,6 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
         item.deinit(allocator);
     }
     self.scene_objects.deinit(allocator);
+    self.shaders.deinit();
+    allocator.destroy(self);
 }

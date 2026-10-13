@@ -3,6 +3,8 @@ const zalg = @import("zalgebra");
 const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
+const ShaderManger = @import("../graphics/ShaderManager.zig");
+const TextureManger = @import("../graphics/TextureManager.zig");
 const Camera = @import("../graphics/Camera.zig");
 const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
@@ -29,14 +31,19 @@ const vtable: Scene.VTable = .{
 
 camera: Camera,
 scene_objects: ArrayList(SceneObjects) = .empty,
+shaders: ShaderManger = undefined,
+textures: TextureManger = undefined,
 
 pub fn init(
     io: Io,
     allocator: Allocator,
     window: *Window,
     input: *Input,
-) !City {
-    var self: City = .{
+) !*City {
+    const self = try allocator.create(City);
+    errdefer allocator.destroy(self);
+
+    self.* = .{
         .camera = .{
             .window = window,
             .input = input,
@@ -45,7 +52,13 @@ pub fn init(
     try self.camera.init();
     self.camera.transform.position = zalg.Vec3.new(25, 25, 25);
 
-    const plane = try Plane.init(io, allocator);
+    self.shaders = try ShaderManger.init(io, allocator);
+    errdefer self.shaders.deinit();
+
+    self.textures = try TextureManger.init();
+    errdefer self.textures.deinit();
+
+    const plane = try Plane.init(allocator, &self.shaders.plane);
     errdefer plane.sceneObject().deinit(allocator);
     plane.transform.scale.data[0] = 9;
     plane.transform.scale.data[2] = 9;
@@ -56,16 +69,16 @@ pub fn init(
     try self.scene_objects.append(allocator, plane.sceneObject());
 
     const skybox = try Skybox.init(
-        io,
         allocator,
-        "assets/textures/sky.png",
+        &self.shaders.skybox,
+        &self.textures.skybox,
     );
     errdefer skybox.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, skybox.sceneObject());
 
     const axis = try Axis.init(
-        io,
         allocator,
+        &self.shaders.axis,
     );
     errdefer axis.sceneObject().deinit(allocator);
     axis.transform.scale = axis.transform.scale.scale(10);
@@ -81,12 +94,11 @@ pub fn init(
         for (0..5) |j| {
             const tex = rand.intRangeAtMost(u8, 0, 5);
 
-            const file_name = try std.fmt.allocPrintSentinel(allocator, "assets/textures/facade{}.jpg", .{tex}, 0);
-            defer allocator.free(file_name);
             const moving_building = try MovingBuilding.init(
                 io,
                 allocator,
-                file_name,
+                &self.shaders.building,
+                &self.textures.facades[tex],
             );
             moving_building.transform.scale.data[1] = 1 + (rand.float(f32) * 5);
             errdefer moving_building.sceneObject().deinit(allocator);
@@ -150,4 +162,8 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
         item.deinit(allocator);
     }
     self.scene_objects.deinit(allocator);
+    self.shaders.deinit();
+    self.textures.deinit();
+
+    allocator.destroy(self);
 }
