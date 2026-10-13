@@ -4,12 +4,11 @@ const zalg = @import("zalgebra");
 const c = @import("../../c.zig");
 const Transform = @import("../Transform.zig");
 const Shader = @import("../opengl/Shader.zig");
+const Texture = @import("../opengl/Texture.zig");
 const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
-
-const texture_loader = @import("../texture_loader.zig"); // change
 
 const gl = c.glad;
 const Io = std.Io;
@@ -157,11 +156,11 @@ position_vbo: VertexBuffer,
 colour_vbo: VertexBuffer,
 uv_vbo: VertexBuffer,
 index_vbo: IndexBuffer,
-texture_id: gl.GLuint = 0,
 
 mvp_matrix_id: gl.GLint = 0,
-texture_sampler_id: gl.GLint = 0,
-program: Shader,
+
+program: *Shader,
+texture: *Texture,
 
 rng: std.Random.IoSource,
 velocity: f32 = 0,
@@ -170,7 +169,8 @@ target_velocity: f32 = 0,
 pub fn init(
     io: Io,
     allocator: std.mem.Allocator,
-    texture_path: [:0]const u8,
+    program: *Shader,
+    texture: *Texture,
 ) !*MovingBuilding {
     const self = try allocator.create(MovingBuilding);
     errdefer allocator.destroy(self);
@@ -202,25 +202,12 @@ pub fn init(
     errdefer index_vbo.deinit();
     index_vbo.bind();
 
-    var program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/building.vert",
-        "assets/shaders/building.frag",
-    );
-    errdefer program.deinit();
-
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
-    // update
-    // Load a texture
-    const texture_id = try texture_loader.loadTextureTileBox(texture_path);
-
-    // Get a handle to texture sampler
     const texture_sampler_id = gl.glGetUniformLocation(program.id, "textureSampler");
 
-    self.program.bind();
-    gl.glUniform1i(self.texture_sampler_id, 0);
+    program.bind();
+    gl.glUniform1i(texture_sampler_id, 0);
 
     self.* = .{
         .uv_buffer_data = uv_data,
@@ -230,8 +217,7 @@ pub fn init(
         .index_vbo = index_vbo,
         .uv_vbo = uv_vbo,
         .program = program,
-        .texture_id = texture_id,
-        .texture_sampler_id = texture_sampler_id,
+        .texture = texture,
         .mvp_matrix_id = mvp_matrix_id,
         .rng = .{ .io = io },
     };
@@ -259,9 +245,7 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
         @ptrCast(&mvp.data[0][0]),
     );
 
-    // Bind the texture to unit 0 and point the sampler at it
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_id);
+    self.texture.bind(0);
 
     // Draw the box
     gl.glDrawElements(
@@ -337,7 +321,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.colour_vbo.deinit();
     self.index_vbo.deinit();
     self.uv_vbo.deinit();
-    self.program.deinit();
-    gl.glDeleteTextures(1, &self.texture_id);
     allocator.destroy(self);
 }

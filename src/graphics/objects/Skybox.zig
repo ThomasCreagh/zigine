@@ -4,12 +4,11 @@ const zalg = @import("zalgebra");
 const c = @import("../../c.zig");
 const Transform = @import("../Transform.zig");
 const Shader = @import("../opengl/Shader.zig");
+const Texture = @import("../opengl/Texture.zig");
 const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
-
-const texture_loader = @import("../texture_loader.zig"); // change
 
 const gl = c.glad;
 const Io = std.Io;
@@ -118,27 +117,44 @@ vao: VertexArray,
 position_vbo: VertexBuffer,
 uv_vbo: VertexBuffer,
 index_vbo: IndexBuffer,
-texture_id: gl.GLuint = 0,
 
 vp_matrix_id: gl.GLint = 0,
-texture_sampler_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
+texture: *Texture,
 
 pub fn init(
-    io: Io,
     allocator: std.mem.Allocator,
-    texture_path: [:0]const u8,
+    program: *Shader,
+    texture: *Texture,
 ) !*Skybox {
-    // update
-    // Load a texture
-    const texture_id = try texture_loader.loadSkyBox(texture_path);
-
     var tex_w: gl.GLint = 0;
     var tex_h: gl.GLint = 0;
-    gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id);
-    gl.glGetTexLevelParameteriv(gl.GL_TEXTURE_2D, 0, gl.GL_TEXTURE_WIDTH, &tex_w);
-    gl.glGetTexLevelParameteriv(gl.GL_TEXTURE_2D, 0, gl.GL_TEXTURE_HEIGHT, &tex_h);
-    insetUVs(&uv_buffer_data, @floatFromInt(tex_w), @floatFromInt(tex_h));
+
+    texture.bind(0);
+
+    gl.glGetTexLevelParameteriv(
+        gl.GL_TEXTURE_2D,
+        0,
+        gl.GL_TEXTURE_WIDTH,
+        &tex_w,
+    );
+
+    gl.glGetTexLevelParameteriv(
+        gl.GL_TEXTURE_2D,
+        0,
+        gl.GL_TEXTURE_HEIGHT,
+        &tex_h,
+    );
+
+    var uv_data = uv_buffer_data;
+
+    insetUVs(
+        &uv_data,
+        @floatFromInt(tex_w),
+        @floatFromInt(tex_h),
+    );
+
+    std.debug.print("skybox texture size: {} x {}\n", .{ tex_w, tex_h });
 
     const self = try allocator.create(Skybox);
     errdefer allocator.destroy(self);
@@ -152,7 +168,7 @@ pub fn init(
     position_vbo.bind();
     vao.enableAttrib(0, 3);
 
-    const uv_vbo = VertexBuffer.init(&uv_buffer_data);
+    const uv_vbo = VertexBuffer.init(&uv_data);
     errdefer uv_vbo.deinit();
 
     uv_vbo.bind();
@@ -162,21 +178,13 @@ pub fn init(
     errdefer index_vbo.deinit();
     index_vbo.bind();
 
-    var program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/skybox.vert",
-        "assets/shaders/skybox.frag",
-    );
-    errdefer program.deinit();
-
     const vp_matrix_id = gl.glGetUniformLocation(program.id, "VP");
 
     // Get a handle to texture sampler
     const texture_sampler_id = gl.glGetUniformLocation(program.id, "textureSampler");
 
     program.bind();
-    gl.glUniform1i(self.texture_sampler_id, 0);
+    gl.glUniform1i(texture_sampler_id, 0);
     std.debug.print("texture sampler: {}\n", .{texture_sampler_id});
 
     self.* = .{
@@ -185,8 +193,7 @@ pub fn init(
         .index_vbo = index_vbo,
         .uv_vbo = uv_vbo,
         .program = program,
-        .texture_id = texture_id,
-        .texture_sampler_id = texture_sampler_id,
+        .texture = texture,
         .vp_matrix_id = vp_matrix_id,
     };
 
@@ -216,9 +223,7 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
         @ptrCast(&vp.data[0][0]),
     );
 
-    // Bind the texture to unit 0 and point the sampler at it
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_id);
+    self.texture.bind(0);
 
     // Skybox depth is forced to 1.0 in the shader, so it must pass LEQUAL
     gl.glDepthFunc(gl.GL_LEQUAL);
@@ -273,7 +278,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.position_vbo.deinit();
     self.index_vbo.deinit();
     self.uv_vbo.deinit();
-    self.program.deinit();
-    gl.glDeleteTextures(1, &self.texture_id);
     allocator.destroy(self);
 }

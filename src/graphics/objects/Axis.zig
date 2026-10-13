@@ -58,9 +58,9 @@ colour_vbo: VertexBuffer,
 
 // Shader variable IDs
 mvp_matrix_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
 
-pub fn init(io: Io, allocator: std.mem.Allocator) !*Axis {
+pub fn init(allocator: std.mem.Allocator, program: *Shader) !*Axis {
     const self = try allocator.create(Axis);
     errdefer allocator.destroy(self);
 
@@ -78,14 +78,6 @@ pub fn init(io: Io, allocator: std.mem.Allocator) !*Axis {
 
     colour_vbo.bind();
     vao.enableAttrib(1, 3);
-
-    const program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/axis.vert",
-        "assets/shaders/axis.frag",
-    );
-    errdefer program.deinit();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
@@ -141,6 +133,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.vao.deinit();
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
-    self.program.deinit();
     allocator.destroy(self);
 }

@@ -52,11 +52,11 @@ index_vbo: IndexBuffer,
 
 // Shader variable IDs
 mvp_matrix_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
 
 pub fn init(
-    io: Io,
     allocator: std.mem.Allocator,
+    program: *Shader,
 ) !*Plane {
     const self = try allocator.create(Plane);
     errdefer allocator.destroy(self);
@@ -80,14 +80,6 @@ pub fn init(
     errdefer index_vbo.deinit();
 
     index_vbo.bind();
-
-    const program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/plane.vert",
-        "assets/shaders/plane.frag",
-    );
-    errdefer program.deinit();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
@@ -151,6 +143,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
     self.index_vbo.deinit();
-    self.program.deinit();
     allocator.destroy(self);
 }

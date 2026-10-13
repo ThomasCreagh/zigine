@@ -159,11 +159,11 @@ texture_id: gl.GLuint = 0,
 
 mvp_matrix_id: gl.GLint = 0,
 texture_sampler_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
 
 pub fn init(
-    io: Io,
     allocator: std.mem.Allocator,
+    program: *Shader,
     texture_path: [:0]const u8,
 ) !*Building {
     const self = try allocator.create(Building);
@@ -194,14 +194,6 @@ pub fn init(
     errdefer index_vbo.deinit();
     index_vbo.bind();
 
-    var program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/building.vert",
-        "assets/shaders/building.frag",
-    );
-    errdefer program.deinit();
-
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
     // update
@@ -211,7 +203,7 @@ pub fn init(
     // Get a handle to texture sampler
     const texture_sampler_id = gl.glGetUniformLocation(program.id, "textureSampler");
 
-    self.program.bind();
+    program.bind();
     gl.glUniform1i(self.texture_sampler_id, 0);
 
     self.* = .{
@@ -283,7 +275,6 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.colour_vbo.deinit();
     self.index_vbo.deinit();
     self.uv_vbo.deinit();
-    self.program.deinit();
     gl.glDeleteTextures(1, &self.texture_id);
     allocator.destroy(self);
 }

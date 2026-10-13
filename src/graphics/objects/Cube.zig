@@ -127,9 +127,9 @@ colour_vbo: VertexBuffer,
 index_vbo: IndexBuffer,
 
 mvp_matrix_id: gl.GLint = 0,
-program: Shader,
+program: *Shader,
 
-pub fn init(io: Io, allocator: std.mem.Allocator) !*Cube {
+pub fn init(allocator: std.mem.Allocator, program: *Shader) !*Cube {
     const self = try allocator.create(Cube);
     errdefer allocator.destroy(self);
 
@@ -152,14 +152,6 @@ pub fn init(io: Io, allocator: std.mem.Allocator) !*Cube {
     errdefer index_vbo.deinit();
 
     index_vbo.bind();
-
-    const program = try Shader.init(
-        io,
-        allocator,
-        "assets/shaders/cube.vert",
-        "assets/shaders/cube.frag",
-    );
-    errdefer program.deinit();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
 
@@ -222,6 +214,5 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
     self.index_vbo.deinit();
-    self.program.deinit();
     allocator.destroy(self);
 }
