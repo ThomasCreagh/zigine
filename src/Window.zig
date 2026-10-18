@@ -18,12 +18,25 @@ window: *glfw.GLFWwindow,
 
 pub fn init() !Window {
     _ = glfw.glfwSetErrorCallback(errorCallback);
-    if (glfw.glfwInit() == 0) return Error.GlfwInitFailed;
+
+    glfw.glfwInitHint(
+        glfw.GLFW_PLATFORM,
+        glfw.GLFW_PLATFORM_X11,
+    );
+
+    if (glfw.glfwInit() == 0)
+        return Error.GlfwInitFailed;
+
     errdefer glfw.glfwTerminate();
 
     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GL_TRUE); // For MacOS
+
+    glfw.glfwWindowHint(
+        glfw.GLFW_OPENGL_FORWARD_COMPAT,
+        glfw.GL_TRUE,
+    );
+
     glfw.glfwWindowHint(
         glfw.GLFW_OPENGL_PROFILE,
         glfw.GLFW_OPENGL_CORE_PROFILE,
@@ -36,6 +49,7 @@ pub fn init() !Window {
         null,
         null,
     ) orelse return Error.FailedToOpenWindow;
+
     errdefer glfw.glfwDestroyWindow(window);
 
     glfw.glfwMakeContextCurrent(window);
@@ -51,7 +65,6 @@ pub fn init() !Window {
         return Error.GladInitFailed;
     }
 
-    // depth teseting
     gl.glEnable(gl.GL_DEPTH_TEST);
     gl.glDepthFunc(gl.GL_LESS);
 
