@@ -36,7 +36,7 @@ const colour_buffer_data: [12]gl.GLfloat = .{
     0.1, 0.1, 0.1,
 };
 
-// 12 triangle faces of a box
+// 2 triangles of a quad
 const index_buffer_data: [6]gl.GLuint = .{
     0, 1, 2,
     3, 0, 2,

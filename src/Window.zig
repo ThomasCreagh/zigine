@@ -45,7 +45,7 @@ pub fn init() !Window {
     const window = glfw.glfwCreateWindow(
         1920,
         1080,
-        "zingine",
+        "zigine",
         null,
         null,
     ) orelse return Error.FailedToOpenWindow;

@@ -9,13 +9,11 @@ const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
 
-const texture_loader = @import("../texture_loader.zig"); // change
-
 const gl = c.glad;
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-const Building = @This();
+const CornellEnclosure = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
@@ -63,45 +61,44 @@ const vertex_buffer_data: [72]gl.GLfloat = .{
 };
 
 const colour_buffer_data: [72]gl.GLfloat = .{
-    // Front, red
+    // Front, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Back, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Left, red
     1.0, 0.0, 0.0,
     1.0, 0.0, 0.0,
     1.0, 0.0, 0.0,
     1.0, 0.0, 0.0,
 
-    // Back, yellow
-    1.0, 1.0, 0.0,
-    1.0, 1.0, 0.0,
-    1.0, 1.0, 0.0,
-    1.0, 1.0, 0.0,
-
-    // Left, green
+    // Right, green
     0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,
 
-    // Right, cyan
-    0.0, 1.0, 1.0,
-    0.0, 1.0, 1.0,
-    0.0, 1.0, 1.0,
-    0.0, 1.0, 1.0,
+    // Top, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
 
-    // Top, blue
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,
-
-    // Bottom, magenta
-    1.0, 0.0, 1.0,
-    1.0, 0.0, 1.0,
-    1.0, 0.0, 1.0,
-    1.0, 0.0, 1.0,
+    // Bottom, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
 };
 
-// 12 triangle faces of a box
-const index_buffer_data: [36]gl.GLuint = .{
+const index_buffer_data: [36]u32 = .{
     0,  1,  2,
     0,  2,  3,
 
@@ -121,52 +118,19 @@ const index_buffer_data: [36]gl.GLuint = .{
     20, 22, 23,
 };
 
-const uv_buffer_data: [32]gl.GLfloat = .{
-    // Front
-    1.0, 1.0,
-    2.0, 1.0,
-    2.0, 0.0,
-    1.0, 0.0,
-
-    // Back
-    3.0, 1.0,
-    4.0, 1.0,
-    4.0, 0.0,
-    3.0, 0.0,
-
-    // Left
-    0.0, 1.0,
-    1.0, 1.0,
-    1.0, 0.0,
-    0.0, 0.0,
-
-    // Right
-    2.0, 1.0,
-    3.0, 1.0,
-    3.0, 0.0,
-    2.0, 0.0,
-};
-
 transform: Transform = .{},
 enable: bool = true,
 
 vao: VertexArray,
 position_vbo: VertexBuffer,
 colour_vbo: VertexBuffer,
-uv_vbo: VertexBuffer,
 index_vbo: IndexBuffer,
-texture_id: gl.GLuint = 0,
 
 mvp_matrix_id: gl.GLint = 0,
-texture_sampler_id: gl.GLint = 0,
 program: *Shader,
 
-pub fn init(
-    allocator: std.mem.Allocator,
-    program: *Shader,
-    texture_path: [:0]const u8,
-) !*Building {
-    const self = try allocator.create(Building);
+pub fn init(allocator: std.mem.Allocator, program: *Shader) !*CornellEnclosure {
+    const self = try allocator.create(CornellEnclosure);
     errdefer allocator.destroy(self);
 
     const vao = VertexArray.init();
@@ -184,37 +148,19 @@ pub fn init(
     colour_vbo.bind();
     vao.enableAttrib(1, 3);
 
-    const uv_vbo = VertexBuffer.init(&uv_buffer_data);
-    errdefer uv_vbo.deinit();
-
-    uv_vbo.bind();
-    vao.enableAttrib(2, 2);
-
     const index_vbo = IndexBuffer.init(&index_buffer_data);
     errdefer index_vbo.deinit();
+
     index_vbo.bind();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
-
-    // update
-    // Load a texture
-    const texture_id = try texture_loader.loadTextureTileBox(texture_path);
-
-    // Get a handle to texture sampler
-    const texture_sampler_id = gl.glGetUniformLocation(program.id, "textureSampler");
-
-    program.bind();
-    gl.glUniform1i(self.texture_sampler_id, 0);
 
     self.* = .{
         .vao = vao,
         .position_vbo = position_vbo,
         .colour_vbo = colour_vbo,
         .index_vbo = index_vbo,
-        .uv_vbo = uv_vbo,
         .program = program,
-        .texture_id = texture_id,
-        .texture_sampler_id = texture_sampler_id,
         .mvp_matrix_id = mvp_matrix_id,
     };
 
@@ -222,7 +168,7 @@ pub fn init(
 }
 
 pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
-    const self: *Building = @ptrCast(@alignCast(ptr));
+    const self: *CornellEnclosure = @ptrCast(@alignCast(ptr));
 
     if (self.enable == false) return;
 
@@ -240,12 +186,6 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
         gl.GL_FALSE,
         @ptrCast(&mvp.data[0][0]),
     );
-
-    // Bind the texture to unit 0 and point the sampler at it
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_id);
-
-    // Draw the box
     gl.glDrawElements(
         gl.GL_TRIANGLES, // mode
         36, // number of indices
@@ -257,11 +197,11 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
 pub fn update(_: *anyopaque, _: f32) void {}
 
 pub fn getTransform(ptr: *anyopaque) *Transform {
-    const self: *Building = @ptrCast(@alignCast(ptr));
+    const self: *CornellEnclosure = @ptrCast(@alignCast(ptr));
     return &self.transform;
 }
 
-pub fn sceneObject(self: *Building) SceneObject {
+pub fn sceneObject(self: *CornellEnclosure) SceneObject {
     return .{
         .ptr = self,
         .vtable = &vtable,
@@ -269,12 +209,10 @@ pub fn sceneObject(self: *Building) SceneObject {
 }
 
 pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
-    const self: *Building = @ptrCast(@alignCast(ptr));
+    const self: *CornellEnclosure = @ptrCast(@alignCast(ptr));
     self.vao.deinit();
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
     self.index_vbo.deinit();
-    self.uv_vbo.deinit();
-    gl.glDeleteTextures(1, &self.texture_id);
     allocator.destroy(self);
 }
