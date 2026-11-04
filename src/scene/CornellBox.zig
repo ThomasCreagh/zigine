@@ -10,11 +10,7 @@ const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
 
 const Axis = @import("../graphics/objects/Axis.zig");
-const Triangle = @import("../graphics/objects/Triangle.zig");
-const Plane = @import("../graphics/objects/Plane.zig");
-const WhiteCube = @import("../graphics/objects/WhiteCube.zig");
-const CornellEnclosure = @import("../graphics/objects/CornellEnclosure.zig");
-const Skybox = @import("../graphics/objects/Skybox.zig");
+const Mesh = @import("../graphics/objects/Mesh.zig");
 
 const Io = std.Io;
 const gl = c.glad;
@@ -27,6 +23,183 @@ const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
     .deinit = deinit,
+};
+
+const cornell_box_positions: [60]f32 = .{
+    // Floor
+    -552.8, 0.0,   0.0,
+    0.0,    0.0,   0.0,
+    0.0,    0.0,   -559.2,
+    -549.6, 0.0,   -559.2,
+
+    // Ceiling
+    -556.0, 548.8, 0.0,
+    -556.0, 548.8, -559.2,
+    0.0,    548.8, -559.2,
+    0.0,    548.8, 0.0,
+
+    // Left wall
+    -552.8, 0.0,   0.0,
+    -549.6, 0.0,   -559.2,
+    -556.0, 548.8, -559.2,
+    -556.0, 548.8, 0.0,
+
+    // Right wall
+    0.0,    0.0,   -559.2,
+    0.0,    0.0,   0.0,
+    0.0,    548.8, 0.0,
+    0.0,    548.8, -559.2,
+
+    // Back wall
+    -549.6, 0.0,   -559.2,
+    0.0,    0.0,   -559.2,
+    0.0,    548.8, -559.2,
+    -556.0, 548.8, -559.2,
+};
+
+const cornell_box_colours: [60]f32 = .{
+    // Floor, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Ceiling, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Left wall, red
+    1.0, 0.0, 0.0,
+    1.0, 0.0, 0.0,
+    1.0, 0.0, 0.0,
+    1.0, 0.0, 0.0,
+
+    // Right wall, green
+    0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,
+
+    // Back wall, white
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+};
+
+const cornell_small_block_positions: [60]f32 = .{
+    // Top
+    -130.0, 165.0, -65.0,
+    -82.0,  165.0, -225.0,
+    -240.0, 165.0, -272.0,
+    -290.0, 165.0, -114.0,
+
+    // Side 1
+    -290.0, 0.0,   -114.0,
+    -290.0, 165.0, -114.0,
+    -240.0, 165.0, -272.0,
+    -240.0, 0.0,   -272.0,
+
+    // Side 2
+    -130.0, 0.0,   -65.0,
+    -130.0, 165.0, -65.0,
+    -290.0, 165.0, -114.0,
+    -290.0, 0.0,   -114.0,
+
+    // Side 3
+    -82.0,  0.0,   -225.0,
+    -82.0,  165.0, -225.0,
+    -130.0, 165.0, -65.0,
+    -130.0, 0.0,   -65.0,
+
+    // Side 4
+    -240.0, 0.0,   -272.0,
+    -240.0, 165.0, -272.0,
+    -82.0,  165.0, -225.0,
+    -82.0,  0.0,   -225.0,
+};
+
+const cornell_tall_block_positions: [60]f32 = .{
+    // Top
+    -423.0, 330.0, -247.0,
+    -265.0, 330.0, -296.0,
+    -314.0, 330.0, -456.0,
+    -472.0, 330.0, -406.0,
+
+    // Side 1
+    -423.0, 0.0,   -247.0,
+    -423.0, 330.0, -247.0,
+    -472.0, 330.0, -406.0,
+    -472.0, 0.0,   -406.0,
+
+    // Side 2
+    -472.0, 0.0,   -406.0,
+    -472.0, 330.0, -406.0,
+    -314.0, 330.0, -456.0,
+    -314.0, 0.0,   -456.0,
+
+    // Side 3
+    -314.0, 0.0,   -456.0,
+    -314.0, 330.0, -456.0,
+    -265.0, 330.0, -296.0,
+    -265.0, 0.0,   -296.0,
+
+    // Side 4
+    -265.0, 0.0,   -296.0,
+    -265.0, 330.0, -296.0,
+    -423.0, 330.0, -247.0,
+    -423.0, 0.0,   -247.0,
+};
+
+const cornell_block_colours: [60]f32 = .{
+    // Top
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Side 1
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Side 2
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Side 3
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+
+    // Side 4
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0,
+};
+
+const cornell_indicies: [30]u32 = .{
+    0,  1,  2,
+    0,  2,  3,
+
+    4,  5,  6,
+    4,  6,  7,
+
+    8,  9,  10,
+    8,  10, 11,
+
+    12, 13, 14,
+    12, 14, 15,
+
+    16, 17, 18,
+    16, 18, 19,
 };
 
 camera: Camera,
@@ -48,10 +221,12 @@ pub fn init(
         .camera = .{
             .window = window,
             .input = null,
+            .near_plane = 600,
+            .far_plane = 1500,
         },
     };
     try self.camera.init();
-    self.camera.transform.position = zalg.Vec3.new(0, 0, 9);
+    self.camera.transform.position = zalg.Vec3.new(-278, 273, 800);
     self.camera.transform.rotation = zalg.Vec3.new(0, 0, 0);
 
     self.shaders = try ShaderManager.init(io, allocator);
@@ -69,32 +244,37 @@ pub fn init(
     axis.enable = true;
     try self.scene_objects.append(allocator, axis.sceneObject());
 
-    const enclosure = try CornellEnclosure.init(
+    const cornell_box = try Mesh.init(
         allocator,
         &self.shaders.cube,
+        &cornell_box_positions,
+        &cornell_box_colours,
+        &cornell_indicies,
     );
-    errdefer enclosure.sceneObject().deinit(allocator);
-    enclosure.transform.scale = zalg.Vec3.new(4, 4, 8);
-    try self.scene_objects.append(allocator, enclosure.sceneObject());
+    errdefer cornell_box.sceneObject().deinit(allocator);
+    try self.scene_objects.append(allocator, cornell_box.sceneObject());
 
-    const cube_0 = try WhiteCube.init(
+    const cornell_tall_block = try Mesh.init(
         allocator,
         &self.shaders.cube,
+        &cornell_tall_block_positions,
+        &cornell_block_colours,
+        &cornell_indicies,
     );
-    errdefer cube_0.sceneObject().deinit(allocator);
-    cube_0.transform.scale = zalg.Vec3.new(1, 2, 1);
-    cube_0.transform.position = zalg.Vec3.new(0, -2, 0);
-    try self.scene_objects.append(allocator, cube_0.sceneObject());
+    errdefer cornell_tall_block.sceneObject().deinit(allocator);
+    try self.scene_objects.append(allocator, cornell_tall_block.sceneObject());
 
-    const cube_1 = try WhiteCube.init(
+    const cornell_small_block = try Mesh.init(
         allocator,
         &self.shaders.cube,
+        &cornell_small_block_positions,
+        &cornell_block_colours,
+        &cornell_indicies,
     );
-    errdefer cube_1.sceneObject().deinit(allocator);
-    cube_1.transform.position = zalg.Vec3.new(0, -2, 0);
-    try self.scene_objects.append(allocator, cube_1.sceneObject());
+    errdefer cornell_small_block.sceneObject().deinit(allocator);
+    try self.scene_objects.append(allocator, cornell_small_block.sceneObject());
 
-    gl.glClearColor(0.3, 0.4, 0.5, 0.0); // Background
+    gl.glClearColor(0.2, 0.2, 0.25, 0.0); // Background
 
     return self;
 }

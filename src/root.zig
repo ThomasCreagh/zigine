@@ -18,7 +18,8 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     var window = try Window.init();
     defer window.deinit();
 
-    window.vsync(false);
+    window.vsync(true);
+    window.culling(true);
 
     var input: Input = undefined;
     input.init(&window);
