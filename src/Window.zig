@@ -98,6 +98,15 @@ pub fn vsync(self: *Window, enable: bool) void {
     }
 }
 
+pub fn culling(self: *Window, enable: bool) void {
+    _ = self;
+    if (enable == true) {
+        gl.glEnable(gl.GL_CULL_FACE);
+    } else {
+        gl.glDisable(gl.GL_CULL_FACE);
+    }
+}
+
 pub fn close(self: *Window) void {
     glfw.glfwSetWindowShouldClose(self.window, gl.GL_TRUE);
 }
