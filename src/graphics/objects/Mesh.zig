@@ -28,6 +28,7 @@ enable: bool = true,
 vao: VertexArray,
 position_vbo: VertexBuffer,
 colour_vbo: VertexBuffer,
+normal_vbo: VertexBuffer,
 index_vbo: IndexBuffer,
 
 index_buffer_len: usize,
@@ -60,6 +61,15 @@ pub fn init(
     colour_vbo.bind();
     vao.enableAttrib(1, 3);
 
+    const normal_buffer_data = try allocator.alloc(f32, vertex_buffer_data.len);
+    defer allocator.free(normal_buffer_data);
+    setNormals(normal_buffer_data, vertex_buffer_data);
+    const normal_vbo = VertexBuffer.init(normal_buffer_data);
+    errdefer normal_vbo.deinit();
+
+    normal_vbo.bind();
+    vao.enableAttrib(2, 3);
+
     const index_vbo = IndexBuffer.init(index_buffer_data);
     errdefer index_vbo.deinit();
 
@@ -71,6 +81,7 @@ pub fn init(
         .vao = vao,
         .position_vbo = position_vbo,
         .colour_vbo = colour_vbo,
+        .normal_vbo = normal_vbo,
         .index_vbo = index_vbo,
         .index_buffer_len = index_buffer_data.len,
         .program = program,
@@ -126,6 +137,41 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.vao.deinit();
     self.position_vbo.deinit();
     self.colour_vbo.deinit();
+    self.normal_vbo.deinit();
     self.index_vbo.deinit();
     allocator.destroy(self);
+}
+
+fn setNormals(normal_array: []f32, vertex_array: []const f32) void {
+    for (0..5) |i_p| {
+        const i = i_p * 12;
+
+        const vec1 = zalg.Vec3.new(
+            vertex_array[i],
+            vertex_array[i + 1],
+            vertex_array[i + 2],
+        );
+        const vec2 = zalg.Vec3.new(
+            vertex_array[i + 3],
+            vertex_array[i + 4],
+            vertex_array[i + 5],
+        );
+        const vec3 = zalg.Vec3.new(
+            vertex_array[i + 6],
+            vertex_array[i + 7],
+            vertex_array[i + 8],
+        );
+
+        const edge1 = zalg.Vec3.sub(vec2, vec1);
+        const edge2 = zalg.Vec3.sub(vec3, vec1);
+
+        const cross_prod = zalg.Vec3.cross(edge1, edge2);
+        const normal = zalg.Vec3.norm(cross_prod);
+
+        for (0..4) |v| {
+            normal_array[i + (v * 3)] = normal.data[0];
+            normal_array[i + (v * 3) + 1] = normal.data[1];
+            normal_array[i + (v * 3) + 2] = normal.data[2];
+        }
+    }
 }

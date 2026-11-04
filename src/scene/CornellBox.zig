@@ -246,7 +246,7 @@ pub fn init(
 
     const cornell_box = try Mesh.init(
         allocator,
-        &self.shaders.cube,
+        &self.shaders.cornell,
         &cornell_box_positions,
         &cornell_box_colours,
         &cornell_indicies,
@@ -256,7 +256,7 @@ pub fn init(
 
     const cornell_tall_block = try Mesh.init(
         allocator,
-        &self.shaders.cube,
+        &self.shaders.cornell,
         &cornell_tall_block_positions,
         &cornell_block_colours,
         &cornell_indicies,
@@ -266,7 +266,7 @@ pub fn init(
 
     const cornell_small_block = try Mesh.init(
         allocator,
-        &self.shaders.cube,
+        &self.shaders.cornell,
         &cornell_small_block_positions,
         &cornell_block_colours,
         &cornell_indicies,
