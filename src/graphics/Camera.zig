@@ -18,7 +18,7 @@ const mouse_sensitivity: f32 = 0.001;
 const position_speed: f32 = 5;
 
 window: *Window,
-input: *Input,
+input: ?*Input,
 
 transform: Transform = .{},
 fov: f32 = 45.0,
@@ -40,13 +40,15 @@ pub fn init(self: *Camera) !void {
 }
 
 pub fn update(self: *Camera, dt: f32) void {
+    if (self.input == null) return;
+    const input = self.input orelse unreachable;
 
     // mouse
     self.transform.rotation.data[0] -=
-        @as(f32, @floatCast(self.input.mouse_dy)) * mouse_sensitivity;
+        @as(f32, @floatCast(input.mouse_dy)) * mouse_sensitivity;
 
     self.transform.rotation.data[1] +=
-        @as(f32, @floatCast(self.input.mouse_dx)) * mouse_sensitivity;
+        @as(f32, @floatCast(input.mouse_dx)) * mouse_sensitivity;
 
     self.transform.rotation.data[0] = clamp(
         self.transform.rotation.data[0],
@@ -55,7 +57,7 @@ pub fn update(self: *Camera, dt: f32) void {
     );
 
     // keys
-    const keys_down = self.input.keys_down;
+    const keys_down = input.keys_down;
 
     const yaw = self.transform.rotation.data[1];
 
@@ -126,10 +128,10 @@ pub fn projectionMatrix(self: *Camera) zalg.Mat4 {
         @as(f32, @floatFromInt(self.fb_h));
 
     return zalg.Mat4.perspective(
-        45.0,
+        self.fov,
         aspect,
-        0.1,
-        100.0,
+        self.near_plane,
+        self.far_plane,
     );
 }
 

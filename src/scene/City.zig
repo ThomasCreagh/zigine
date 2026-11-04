@@ -3,8 +3,8 @@ const zalg = @import("zalgebra");
 const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
-const ShaderManger = @import("../graphics/ShaderManager.zig");
-const TextureManger = @import("../graphics/TextureManager.zig");
+const ShaderManager = @import("../graphics/ShaderManager.zig");
+const TextureManager = @import("../graphics/TextureManager.zig");
 const Camera = @import("../graphics/Camera.zig");
 const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
@@ -31,8 +31,8 @@ const vtable: Scene.VTable = .{
 
 camera: Camera,
 scene_objects: ArrayList(SceneObjects) = .empty,
-shaders: ShaderManger = undefined,
-textures: TextureManger = undefined,
+shaders: ShaderManager = undefined,
+textures: TextureManager = undefined,
 
 pub fn init(
     io: Io,
@@ -52,10 +52,10 @@ pub fn init(
     try self.camera.init();
     self.camera.transform.position = zalg.Vec3.new(25, 25, 25);
 
-    self.shaders = try ShaderManger.init(io, allocator);
+    self.shaders = try ShaderManager.init(io, allocator);
     errdefer self.shaders.deinit();
 
-    self.textures = try TextureManger.init();
+    self.textures = try TextureManager.init();
     errdefer self.textures.deinit();
 
     const plane = try Plane.init(allocator, &self.shaders.plane);

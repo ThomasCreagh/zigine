@@ -3,7 +3,7 @@ const Shader = @import("opengl/Shader.zig");
 
 const Io = std.Io;
 
-const ShaderManger = @This();
+const ShaderManager = @This();
 
 axis: Shader,
 building: Shader,
@@ -15,7 +15,7 @@ triangle: Shader,
 pub fn init(
     io: Io,
     allocator: std.mem.Allocator,
-) !ShaderManger {
+) !ShaderManager {
     var axis = try Shader.init(
         io,
         allocator,
@@ -74,7 +74,7 @@ pub fn init(
     };
 }
 
-pub fn deinit(self: *ShaderManger) void {
+pub fn deinit(self: *ShaderManager) void {
     self.axis.deinit();
     self.building.deinit();
     self.cube.deinit();

@@ -5,6 +5,7 @@ const Window = @import("Window.zig");
 const Input = @import("Input.zig");
 const City = @import("scene/City.zig");
 const BasicAxis = @import("scene/BasicAxis.zig");
+const CornellBox = @import("scene/CornellBox.zig");
 
 const Io = std.Io;
 const Timestamp = Io.Timestamp;
@@ -22,7 +23,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     var input: Input = undefined;
     input.init(&window);
 
-    var scene_impl: *City = try .init(io, allocator, &window, &input);
+    var scene_impl: *CornellBox = try .init(io, allocator, &window, &input);
     //var scene_impl: *BasicAxis = try .init(io, allocator, &window, &input);
 
     const scene = scene_impl.scene();

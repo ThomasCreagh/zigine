@@ -22,13 +22,13 @@ const vtable: SceneObject.VTable = .{
 };
 
 const vertex_buffer_data: [9]gl.GLfloat = .{
-    // X axis
+    // bottom left
     -0.5, -0.5, 0.0,
 
-    // Y axis
+    // bottom right
     0.5,  -0.5, 0.0,
 
-    // Z axis
+    // top
     0.0,  0.5,  0.0,
 };
 
