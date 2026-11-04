@@ -11,6 +11,7 @@ cube: Shader,
 plane: Shader,
 skybox: Shader,
 triangle: Shader,
+cornell: Shader,
 
 pub fn init(
     io: Io,
@@ -64,6 +65,14 @@ pub fn init(
     );
     errdefer triangle.deinit();
 
+    var cornell = try Shader.init(
+        io,
+        allocator,
+        "assets/shaders/cornell.vert",
+        "assets/shaders/cornell.frag",
+    );
+    errdefer cornell.deinit();
+
     return .{
         .axis = axis,
         .building = building,
@@ -71,6 +80,7 @@ pub fn init(
         .plane = plane,
         .skybox = skybox,
         .triangle = triangle,
+        .cornell = cornell,
     };
 }
 
@@ -81,4 +91,5 @@ pub fn deinit(self: *ShaderManager) void {
     self.plane.deinit();
     self.skybox.deinit();
     self.triangle.deinit();
+    self.cornell.deinit();
 }
