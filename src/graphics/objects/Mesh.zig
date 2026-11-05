@@ -8,6 +8,7 @@ const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
+const RenderContext = @import("../RenderContext.zig");
 
 const gl = c.glad;
 const Io = std.Io;
@@ -34,6 +35,8 @@ index_vbo: IndexBuffer,
 index_buffer_len: usize,
 
 mvp_matrix_id: gl.GLint = 0,
+light_position_id: gl.GLint = 0,
+light_intensity_id: gl.GLint = 0,
 program: *Shader,
 
 pub fn init(
@@ -76,6 +79,8 @@ pub fn init(
     index_vbo.bind();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
+    const light_position_id = gl.glGetUniformLocation(program.id, "lightPosition");
+    const light_intensity_id = gl.glGetUniformLocation(program.id, "lightIntensity");
 
     self.* = .{
         .vao = vao,
@@ -86,15 +91,20 @@ pub fn init(
         .index_buffer_len = index_buffer_data.len,
         .program = program,
         .mvp_matrix_id = mvp_matrix_id,
+        .light_position_id = light_position_id,
+        .light_intensity_id = light_intensity_id,
     };
 
     return self;
 }
 
-pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
+pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     const self: *Mesh = @ptrCast(@alignCast(ptr));
 
     if (self.enable == false) return;
+
+    const view = ctx.view;
+    const projection = ctx.projection;
 
     const model = self.transform.matrix();
 
@@ -110,6 +120,14 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
         gl.GL_FALSE,
         @ptrCast(&mvp.data[0][0]),
     );
+
+    switch (ctx.light.*) {
+        .pointlight => |light| {
+            gl.glUniform3fv(self.light_position_id, 1, @ptrCast(&light.position.data));
+            gl.glUniform3fv(self.light_intensity_id, 1, @ptrCast(&light.intensity.data));
+        },
+    }
+
     gl.glDrawElements(
         gl.GL_TRIANGLES, // mode
         @intCast(self.index_buffer_len), // number of indices
