@@ -6,11 +6,13 @@ const SceneObjects = @import("../graphics/SceneObject.zig");
 const ShaderManager = @import("../graphics/ShaderManager.zig");
 const TextureManager = @import("../graphics/TextureManager.zig");
 const Camera = @import("../graphics/Camera.zig");
+const RenderContext = @import("../graphics/RenderContext.zig");
 const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
 
-const Axis = @import("../graphics/objects/Axis.zig");
+//const Axis = @import("../graphics/objects/Axis.zig");
 const Mesh = @import("../graphics/objects/Mesh.zig");
+const Light = @import("../graphics/light.zig").Light;
 
 const Io = std.Io;
 const gl = c.glad;
@@ -24,6 +26,15 @@ const vtable: Scene.VTable = .{
     .update = update,
     .deinit = deinit,
 };
+
+const wave500 = zalg.Vec3.new(0.0, 255.0, 146.0);
+const wave600 = zalg.Vec3.new(255.0, 190.0, 0.0);
+const wave700 = zalg.Vec3.new(205.0, 0.0, 0.0);
+
+const light_intensity: zalg.Vec3 = wave500.scale(8.0)
+    .add(wave600.scale(15.6))
+    .add(wave700.scale(18.4))
+    .scale(5.0);
 
 const cornell_box_positions: [60]f32 = .{
     // Floor
@@ -206,6 +217,7 @@ camera: Camera,
 scene_objects: ArrayList(SceneObjects) = .empty,
 shaders: ShaderManager = undefined,
 textures: TextureManager = undefined,
+light: Light = undefined,
 
 pub fn init(
     io: Io,
@@ -213,7 +225,7 @@ pub fn init(
     window: *Window,
     input: *Input,
 ) !*CornellBox {
-    _ = input;
+    input.captureCursor(false);
     const self = try allocator.create(CornellBox);
     errdefer allocator.destroy(self);
 
@@ -235,14 +247,21 @@ pub fn init(
     self.textures = try TextureManager.init();
     errdefer self.textures.deinit();
 
-    const axis = try Axis.init(
-        allocator,
-        &self.shaders.axis,
-    );
-    errdefer axis.sceneObject().deinit(allocator);
-    axis.transform.scale = axis.transform.scale.scale(10);
-    axis.enable = true;
-    try self.scene_objects.append(allocator, axis.sceneObject());
+    self.light = .{
+        .pointlight = .{
+            .position = zalg.Vec3.new(-275, 500, -275),
+            .intensity = light_intensity,
+        },
+    };
+
+    // const axis = try Axis.init(
+    //     allocator,
+    //     &self.shaders.axis,
+    // );
+    // errdefer axis.sceneObject().deinit(allocator);
+    // axis.transform.scale = axis.transform.scale.scale(10);
+    // axis.enable = true;
+    // try self.scene_objects.append(allocator, axis.sceneObject());
 
     const cornell_box = try Mesh.init(
         allocator,
@@ -285,8 +304,14 @@ pub fn render(ptr: *anyopaque) void {
     const view = self.camera.viewMatrix();
     const projection = self.camera.projectionMatrix();
 
+    const ctx: RenderContext = .{
+        .view = view,
+        .projection = projection,
+        .light = &self.light,
+    };
+
     for (self.scene_objects.items) |item| {
-        item.render(view, projection);
+        item.render(ctx);
     }
 }
 

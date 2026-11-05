@@ -22,14 +22,26 @@ window: *Window,
 
 pub fn init(self: *Input, window: *Window) void {
     self.* = .{ .window = window };
-    glfw.glfwSetInputMode(
-        window.window,
-        glfw.GLFW_CURSOR,
-        glfw.GLFW_CURSOR_DISABLED,
-    );
     glfw.glfwSetWindowUserPointer(window.window, self);
     _ = glfw.glfwSetKeyCallback(window.window, keyCallback);
     _ = glfw.glfwSetCursorPosCallback(window.window, cursorCallback);
+}
+
+pub fn captureCursor(self: *Input, enable: bool) void {
+    if (enable == true) {
+        self.first_mouse = true;
+        glfw.glfwSetInputMode(
+            self.window.window,
+            glfw.GLFW_CURSOR,
+            glfw.GLFW_CURSOR_DISABLED,
+        );
+    } else {
+        glfw.glfwSetInputMode(
+            self.window.window,
+            glfw.GLFW_CURSOR,
+            glfw.GLFW_CURSOR_NORMAL,
+        );
+    }
 }
 
 pub fn endFrame(self: *Input) void {
