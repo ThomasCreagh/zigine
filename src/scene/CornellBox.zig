@@ -7,6 +7,7 @@ const ShaderManager = @import("../graphics/ShaderManager.zig");
 const TextureManager = @import("../graphics/TextureManager.zig");
 const Camera = @import("../graphics/Camera.zig");
 const RenderContext = @import("../graphics/RenderContext.zig");
+const FrameBuffer = @import("../graphics/opengl/FrameBuffer.zig");
 const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
 
@@ -218,6 +219,7 @@ scene_objects: ArrayList(SceneObjects) = .empty,
 shaders: ShaderManager = undefined,
 textures: TextureManager = undefined,
 light: Light = undefined,
+shadow_map: FrameBuffer = undefined,
 
 pub fn init(
     io: Io,
@@ -254,6 +256,9 @@ pub fn init(
         },
     };
 
+    self.shadow_map = try FrameBuffer.initDepth(1024, 1024);
+    errdefer self.shadow_map.deinit();
+
     // const axis = try Axis.init(
     //     allocator,
     //     &self.shaders.axis,
@@ -266,6 +271,7 @@ pub fn init(
     const cornell_box = try Mesh.init(
         allocator,
         &self.shaders.cornell,
+        &self.shaders.depth,
         &cornell_box_positions,
         &cornell_box_colours,
         &cornell_indicies,
@@ -276,6 +282,7 @@ pub fn init(
     const cornell_tall_block = try Mesh.init(
         allocator,
         &self.shaders.cornell,
+        &self.shaders.depth,
         &cornell_tall_block_positions,
         &cornell_block_colours,
         &cornell_indicies,
@@ -286,6 +293,7 @@ pub fn init(
     const cornell_small_block = try Mesh.init(
         allocator,
         &self.shaders.cornell,
+        &self.shaders.depth,
         &cornell_small_block_positions,
         &cornell_block_colours,
         &cornell_indicies,
@@ -308,8 +316,19 @@ pub fn render(ptr: *anyopaque) void {
         .view = view,
         .projection = projection,
         .light = &self.light,
+        .light_view_projection = self.light.viewProjectionMatrix(),
     };
 
+    // for shadows
+    self.shadow_map.bind();
+    self.shadow_map.clear();
+    for (self.scene_objects.items) |item| {
+        item.renderShadow(ctx);
+    }
+    self.shadow_map.unbind();
+
+    // regular render
+    self.shadow_map.depth.bind(0);
     for (self.scene_objects.items) |item| {
         item.render(ctx);
     }
@@ -339,6 +358,7 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.scene_objects.deinit(allocator);
     self.shaders.deinit();
     self.textures.deinit();
+    self.shadow_map.deinit();
 
     allocator.destroy(self);
 }

@@ -7,6 +7,7 @@ const Shader = @import("../opengl/Shader.zig");
 const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const SceneObject = @import("../SceneObject.zig");
+const RenderContext = @import("../RenderContext.zig");
 
 const gl = c.glad;
 const Io = std.Io;
@@ -16,6 +17,7 @@ const Axis = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
+    .renderShadow = renderShadow,
     .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
@@ -92,10 +94,13 @@ pub fn init(allocator: std.mem.Allocator, program: *Shader) !*Axis {
     return self;
 }
 
-pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
+pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     const self: *Axis = @ptrCast(@alignCast(ptr));
 
     if (self.enable == false) return;
+
+    const view = ctx.view;
+    const projection = ctx.projection;
 
     const model = self.transform.matrix();
 
@@ -113,6 +118,8 @@ pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
     );
     gl.glDrawArrays(gl.GL_LINES, 0, 6);
 }
+
+pub fn renderShadow(_: *anyopaque, _: RenderContext) void {}
 
 pub fn update(_: *anyopaque, _: f32) void {}
 

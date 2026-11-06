@@ -9,6 +9,7 @@ const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
+const RenderContext = @import("../RenderContext.zig");
 
 const gl = c.glad;
 const Io = std.Io;
@@ -18,6 +19,7 @@ const Skybox = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
+    .renderShadow = renderShadow,
     .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
@@ -200,10 +202,13 @@ pub fn init(
     return self;
 }
 
-pub fn render(ptr: *anyopaque, view: zalg.Mat4, projection: zalg.Mat4) void {
+pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     const self: *Skybox = @ptrCast(@alignCast(ptr));
 
     if (self.enable == false) return;
+
+    const view = ctx.view;
+    const projection = ctx.projection;
 
     // Remove translation: zero the 4th column's xyz
     var sky_view = view;
@@ -257,6 +262,8 @@ fn insetUVs(uvs: *[48]gl.GLfloat, tex_w: f32, tex_h: f32) void {
         }
     }
 }
+
+pub fn renderShadow(_: *anyopaque, _: RenderContext) void {}
 
 pub fn update(_: *anyopaque, _: f32) void {}
 

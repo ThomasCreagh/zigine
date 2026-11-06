@@ -3,7 +3,6 @@ const zalg = @import("zalgebra");
 
 const Window = @import("Window.zig");
 const Input = @import("Input.zig");
-const City = @import("scene/City.zig");
 const BasicAxis = @import("scene/BasicAxis.zig");
 const CornellBox = @import("scene/CornellBox.zig");
 

@@ -11,6 +11,7 @@ vtable: *const VTable,
 
 pub const VTable = struct {
     render: *const fn (*anyopaque, RenderContext) void,
+    renderShadow: *const fn (*anyopaque, RenderContext) void,
     update: *const fn (*anyopaque, f32) void,
     getTransform: *const fn (*anyopaque) *Transform,
     deinit: *const fn (*anyopaque, Allocator) void,
@@ -21,6 +22,13 @@ pub fn render(
     ctx: RenderContext,
 ) void {
     self.vtable.render(self.ptr, ctx);
+}
+
+pub fn renderShadow(
+    self: SceneObject,
+    ctx: RenderContext,
+) void {
+    self.vtable.renderShadow(self.ptr, ctx);
 }
 
 pub fn update(self: SceneObject, dt: f32) void {
