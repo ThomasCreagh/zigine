@@ -17,6 +17,7 @@ const Light = @import("../graphics/light.zig").Light;
 
 const Io = std.Io;
 const gl = c.glad;
+const glfw = c.glfw;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -36,6 +37,10 @@ const light_intensity: zalg.Vec3 = wave500.scale(8.0)
     .add(wave600.scale(15.6))
     .add(wave700.scale(18.4))
     .scale(5.0);
+
+const light_home = zalg.Vec3.new(-275, 500, -275);
+const light_speed: f32 = 150.0;
+const light_range: f32 = 90.0;
 
 const cornell_box_positions: [60]f32 = .{
     // Floor
@@ -220,6 +225,8 @@ shaders: ShaderManager = undefined,
 textures: TextureManager = undefined,
 light: Light = undefined,
 shadow_map: FrameBuffer = undefined,
+input: *Input,
+light_offset: zalg.Vec3 = zalg.Vec3.new(0, 0, 0),
 
 pub fn init(
     io: Io,
@@ -238,6 +245,7 @@ pub fn init(
             .near_plane = 600,
             .far_plane = 1500,
         },
+        .input = input,
     };
     try self.camera.init();
     self.camera.transform.position = zalg.Vec3.new(-278, 273, 800);
@@ -251,7 +259,7 @@ pub fn init(
 
     self.light = .{
         .pointlight = .{
-            .position = zalg.Vec3.new(-275, 500, -275),
+            .position = light_home,
             .intensity = light_intensity,
         },
     };
@@ -337,9 +345,41 @@ pub fn update(ptr: *anyopaque, dt: f32) void {
     const self: *CornellBox = @ptrCast(@alignCast(ptr));
 
     self.camera.update(dt);
+    self.updateLight(dt);
     for (self.scene_objects.items) |item| {
         item.update(dt);
     }
+}
+
+fn updateLight(self: *CornellBox, dt: f32) void {
+    const keys_down = &self.input.keys_down;
+    const amount = light_speed * dt;
+
+    if (keys_down[glfw.GLFW_KEY_LEFT]) {
+        self.light_offset.data[0] -= amount;
+    }
+    if (keys_down[glfw.GLFW_KEY_RIGHT]) {
+        self.light_offset.data[0] += amount;
+    }
+    if (keys_down[glfw.GLFW_KEY_UP]) {
+        self.light_offset.data[2] -= amount;
+    }
+    if (keys_down[glfw.GLFW_KEY_DOWN]) {
+        self.light_offset.data[2] += amount;
+    }
+
+    self.light_offset.data[0] = std.math.clamp(
+        self.light_offset.data[0],
+        -light_range,
+        light_range,
+    );
+    self.light_offset.data[2] = std.math.clamp(
+        self.light_offset.data[2],
+        -light_range,
+        light_range,
+    );
+
+    self.light.setPosition(light_home.add(self.light_offset));
 }
 
 pub fn scene(self: *CornellBox) Scene {
