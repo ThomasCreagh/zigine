@@ -12,6 +12,10 @@ fov: f32 = 120.0,
 near_plane: f32 = 50.0,
 far_plane: f32 = 600.0,
 
+pub fn setPosition(self: *PointLight, position: zalg.Vec3) void {
+    self.position = position;
+}
+
 pub fn viewMatrix(self: *const PointLight) zalg.Mat4 {
     const eye = self.position;
     const target = eye.add(look_direction);
