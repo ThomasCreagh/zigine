@@ -1,0 +1,11 @@
+#version 330 core
+
+// Input
+layout(location = 0) in vec3 vertexPosition;
+
+uniform mat4 MVP;
+
+void main() {
+    // Transform vertex
+    gl_Position = MVP * vec4(vertexPosition, 1);
+}

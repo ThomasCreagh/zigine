@@ -18,6 +18,7 @@ const Mesh = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
+    .renderShadow = renderShadow,
     .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
@@ -35,13 +36,19 @@ index_vbo: IndexBuffer,
 index_buffer_len: usize,
 
 mvp_matrix_id: gl.GLint = 0,
+model_matrix_id: gl.GLint = 0,
+light_vp_matrix_id: gl.GLint = 0,
+depth_mvp_matrix_id: gl.GLint = 0,
 light_position_id: gl.GLint = 0,
 light_intensity_id: gl.GLint = 0,
+shadow_map_id: gl.GLint = 0,
 program: *Shader,
+depth_program: *Shader,
 
 pub fn init(
     allocator: std.mem.Allocator,
     program: *Shader,
+    depth_program: *Shader,
     vertex_buffer_data: []const f32,
     colour_buffer_data: []const f32,
     index_buffer_data: []const u32,
@@ -79,8 +86,12 @@ pub fn init(
     index_vbo.bind();
 
     const mvp_matrix_id = gl.glGetUniformLocation(program.id, "MVP");
+    const model_matrix_id = gl.glGetUniformLocation(program.id, "model");
+    const light_vp_matrix_id = gl.glGetUniformLocation(program.id, "lightVP");
+    const depth_mvp_matrix_id = gl.glGetUniformLocation(depth_program.id, "MVP");
     const light_position_id = gl.glGetUniformLocation(program.id, "lightPosition");
     const light_intensity_id = gl.glGetUniformLocation(program.id, "lightIntensity");
+    const shadow_map_id = gl.glGetUniformLocation(program.id, "shadowMap");
 
     self.* = .{
         .vao = vao,
@@ -90,9 +101,14 @@ pub fn init(
         .index_vbo = index_vbo,
         .index_buffer_len = index_buffer_data.len,
         .program = program,
+        .depth_program = depth_program,
         .mvp_matrix_id = mvp_matrix_id,
+        .model_matrix_id = model_matrix_id,
+        .light_vp_matrix_id = light_vp_matrix_id,
+        .depth_mvp_matrix_id = depth_mvp_matrix_id,
         .light_position_id = light_position_id,
         .light_intensity_id = light_intensity_id,
+        .shadow_map_id = shadow_map_id,
     };
 
     return self;
@@ -112,13 +128,26 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     const mvp = zalg.Mat4.mul(view_projection, model);
 
     self.program.bind();
-    self.vao.bind();
 
     gl.glUniformMatrix4fv(
         self.mvp_matrix_id,
         1,
         gl.GL_FALSE,
         @ptrCast(&mvp.data[0][0]),
+    );
+
+    gl.glUniformMatrix4fv(
+        self.model_matrix_id,
+        1,
+        gl.GL_FALSE,
+        @ptrCast(&model.data[0][0]),
+    );
+
+    gl.glUniformMatrix4fv(
+        self.light_vp_matrix_id,
+        1,
+        gl.GL_FALSE,
+        @ptrCast(&ctx.light_view_projection.data[0][0]),
     );
 
     switch (ctx.light.*) {
@@ -128,12 +157,30 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
         },
     }
 
-    gl.glDrawElements(
-        gl.GL_TRIANGLES, // mode
-        @intCast(self.index_buffer_len), // number of indices
-        gl.GL_UNSIGNED_INT, // type
-        null, // element array buffer offset
+    gl.glUniform1i(self.shadow_map_id, 0);
+
+    self.draw();
+}
+
+pub fn renderShadow(ptr: *anyopaque, ctx: RenderContext) void {
+    const self: *Mesh = @ptrCast(@alignCast(ptr));
+
+    if (self.enable == false) return;
+
+    const model = self.transform.matrix();
+
+    const mvp = zalg.Mat4.mul(ctx.light_view_projection, model);
+
+    self.depth_program.bind();
+
+    gl.glUniformMatrix4fv(
+        self.depth_mvp_matrix_id,
+        1,
+        gl.GL_FALSE,
+        @ptrCast(&mvp.data[0][0]),
     );
+
+    self.draw();
 }
 
 pub fn update(_: *anyopaque, _: f32) void {}
@@ -160,8 +207,19 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     allocator.destroy(self);
 }
 
+fn draw(self: *const Mesh) void {
+    self.vao.bind();
+
+    gl.glDrawElements(
+        gl.GL_TRIANGLES, // mode
+        @intCast(self.index_buffer_len), // number of indices
+        gl.GL_UNSIGNED_INT, // type
+        null, // element array buffer offset
+    );
+}
+
 fn setNormals(normal_array: []f32, vertex_array: []const f32) void {
-    for (0..5) |i_p| {
+    for (0..vertex_array.len / 12) |i_p| {
         const i = i_p * 12;
 
         const vec1 = zalg.Vec3.new(
