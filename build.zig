@@ -1,4 +1,5 @@
 const std = @import("std");
+const Translator = @import("translate_c").Translator;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -19,6 +20,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const zigimg = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const mod = b.addModule("zigine", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -28,16 +34,27 @@ pub fn build(b: *std.Build) void {
     mod.linkLibrary(glad_dep.artifact("glad"));
 
     mod.addImport("zalgebra", zalgebra.module("zalgebra"));
+    mod.addImport("zigimg", zigimg.module("zigimg"));
 
-    mod.addIncludePath(b.path("external/stb"));
-    mod.addCSourceFile(.{
-        .file = b.path("external/stb/stb_image.c"),
-    });
     mod.link_libc = true;
 
+    const translate_c = b.dependency("translate_c", .{});
+
+    const translator: Translator = .init(translate_c, .{
+        .c_source_file = b.path("src/c.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    translator.addIncludePath(glfw_dep.artifact("glfw").getEmittedIncludeTree());
+    translator.addIncludePath(glad_dep.artifact("glad").getEmittedIncludeTree());
+
     if (b.graph.environ_map.get("GL_HEADERS")) |gl_headers| {
-        mod.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ gl_headers, "include" }) });
+        const gl_include: std.Build.LazyPath = .{ .cwd_relative = b.pathJoin(&.{ gl_headers, "include" }) };
+        mod.addSystemIncludePath(gl_include);
+        translator.addSystemIncludePath(gl_include);
     }
+
+    mod.addImport("c", translator.mod);
 
     const exe = b.addExecutable(.{
         .name = "zigine",
@@ -65,9 +82,7 @@ pub fn build(b: *std.Build) void {
 
     run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const mod_tests = b.addTest(.{
         .root_module = mod,

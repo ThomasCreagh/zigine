@@ -17,7 +17,7 @@ mouse_dy: f64 = 0, // mouse delta y
 
 first_mouse: bool = true,
 
-keys_down: [glfw.GLFW_KEY_LAST + 1]bool = [_]bool{false} ** (glfw.GLFW_KEY_LAST + 1),
+keys_down: [glfw.GLFW_KEY_LAST + 1]bool = @splat(false),
 window: *Window,
 
 pub fn init(self: *Input, window: *Window) void {

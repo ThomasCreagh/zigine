@@ -4,7 +4,7 @@ A small graphics engine written in Zig using OpenGL.
 
 ## Running
 
-First install zig 0.16.0 from https://ziglang.org/download/#release-0.16.0.
+First install zig 0.17.0 from https://ziglang.org/download/#release-0.17.0.
 
 If you have nix package manager you can run `nix develop` to enter the nix flake environment for easy setup.
 
