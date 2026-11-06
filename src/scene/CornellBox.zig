@@ -320,12 +320,11 @@ pub fn render(ptr: *anyopaque) void {
     };
 
     // for shadows
-    self.shadow_map.bind();
-    self.shadow_map.clear();
+    self.shadow_map.beginDepthPass();
     for (self.scene_objects.items) |item| {
         item.renderShadow(ctx);
     }
-    self.shadow_map.unbind();
+    self.shadow_map.endDepthPass();
 
     // regular render
     self.shadow_map.depth.bind(0);

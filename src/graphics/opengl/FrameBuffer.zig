@@ -117,6 +117,18 @@ pub fn clear(_: *const FrameBuffer) void {
     gl.glClear(gl.GL_DEPTH_BUFFER_BIT);
 }
 
+pub fn beginDepthPass(self: *FrameBuffer) void {
+    self.bind();
+    self.clear();
+    gl.glEnable(gl.GL_POLYGON_OFFSET_FILL);
+    gl.glPolygonOffset(2.0, 4.0);
+}
+
+pub fn endDepthPass(self: *const FrameBuffer) void {
+    gl.glDisable(gl.GL_POLYGON_OFFSET_FILL);
+    self.unbind();
+}
+
 pub fn deinit(self: *FrameBuffer) void {
     gl.glDeleteFramebuffers(1, &self.id);
     self.id = 0;
