@@ -1,8 +1,10 @@
 const std = @import("std");
+const zigimg = @import("zigimg");
 const c = @import("../../c.zig");
 
 const gl = c.glad;
-const stb = c.stb;
+const Io = std.Io;
+const Allocator = std.mem.Allocator;
 
 const Texture = @This();
 
@@ -19,29 +21,28 @@ pub const FilterMode = enum {
 id: gl.GLuint = 0,
 
 pub fn init2D(
-    path: [:0]const u8,
+    io: Io,
+    allocator: Allocator,
+    path: []const u8,
     wrap: WrapMode,
     min_filter: FilterMode,
     generate_mipmaps: bool,
 ) !Texture {
-    var w: c_int = 0;
-    var h: c_int = 0;
-    var channels: c_int = 0;
+    var read_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
 
-    const image = stb.stbi_load(
-        path.ptr,
-        &w,
-        &h,
-        &channels,
-        3,
-    );
-
-    if (image == null) {
-        std.debug.print("Failed to load texture: {s}\n", .{path});
+    var image = zigimg.Image.fromFilePath(
+        allocator,
+        io,
+        path,
+        &read_buffer,
+    ) catch |err| {
+        std.debug.print("Failed to load texture: {s} ({t})\n", .{ path, err });
         return error.TextureLoadFailed;
-    }
+    };
 
-    defer stb.stbi_image_free(image);
+    defer image.deinit(allocator);
+
+    try image.convert(allocator, .rgb24);
 
     var id: gl.GLuint = 0;
 
@@ -90,12 +91,12 @@ pub fn init2D(
         gl.GL_TEXTURE_2D,
         0,
         gl.GL_RGB,
-        w,
-        h,
+        @intCast(image.width),
+        @intCast(image.height),
         0,
         gl.GL_RGB,
         gl.GL_UNSIGNED_BYTE,
-        image,
+        image.rawBytes().ptr,
     );
 
     if (generate_mipmaps) {
@@ -107,8 +108,10 @@ pub fn init2D(
     };
 }
 
-pub fn initTileBox(path: [:0]const u8) !Texture {
+pub fn initTileBox(io: Io, allocator: Allocator, path: []const u8) !Texture {
     return init2D(
+        io,
+        allocator,
         path,
         .repeat,
         .linear_mipmap_linear,
@@ -116,8 +119,10 @@ pub fn initTileBox(path: [:0]const u8) !Texture {
     );
 }
 
-pub fn initSkybox(path: [:0]const u8) !Texture {
+pub fn initSkybox(io: Io, allocator: Allocator, path: []const u8) !Texture {
     return init2D(
+        io,
+        allocator,
         path,
         .clamp_to_edge,
         .linear,

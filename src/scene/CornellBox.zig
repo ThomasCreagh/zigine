@@ -246,7 +246,7 @@ pub fn init(
     self.shaders = try ShaderManager.init(io, allocator);
     errdefer self.shaders.deinit();
 
-    self.textures = try TextureManager.init();
+    self.textures = try TextureManager.init(io, allocator);
     errdefer self.textures.deinit();
 
     self.light = .{
@@ -256,7 +256,7 @@ pub fn init(
         },
     };
 
-    self.shadow_map = try FrameBuffer.initDepth(1024, 1024);
+    self.shadow_map = try FrameBuffer.initDepth(2048, 2048);
     errdefer self.shadow_map.deinit();
 
     // const axis = try Axis.init(

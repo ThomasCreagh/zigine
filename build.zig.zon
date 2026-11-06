@@ -2,19 +2,27 @@
     .name = .zigine,
     .version = "0.0.0",
     .fingerprint = 0xa80876d30865fb59,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .glfw_zig = .{
-            .url = "git+https://github.com/tiawl/glfw.zig.git#0c386e13640ce044c88b02b24f5738f45a48fee7",
-            .hash = "glfw_zig-1.0.0-NrvYoxInGgBWOP6zqu31MBtiek0vwBhg-KYyXF356KPC",
+            .url = "git+https://github.com/tiawl/glfw.zig?ref=stable#cc8704503a4375d3f6481aef4d63c827d9e27702",
+            .hash = "glfw_zig-1.0.0-NrvYo0o9GgCstvf_PtUHNmzTGsOXqhMhLzE82VPK05NW",
         },
         .zig_glad = .{
-            .url = "git+https://github.com/jackparsonss/zig.glad#e973c2a302d8217f6f1a65f46f5222892fe26429",
-            .hash = "zig_glad-0.0.4-6OirnjjXBgDv6gERB59NTaXKyaHC9xidaDsn-qSgOZy3",
+            .url = "git+https://github.com/jackparsonss/zig.glad?ref=main#0fbb12e2f5b9d54f4746c61a18e09b0684a4d6a9",
+            .hash = "zig_glad-0.0.4-6OirnlHXBgAnuMR-izdxXDhV3dvnWw0V90kslFx8_zzB",
         },
         .zalgebra = .{
-            .url = "git+https://github.com/kooparse/zalgebra#0482fbaf8f17b90b51c333ea60e77dfa12aaf5e2",
-            .hash = "zalgebra-0.0.0-aaiVSoN_AQCWiF1SsKeHX0FxJ2-38OIPsqU9F-cVMQMN",
+            .url = "git+https://github.com/kooparse/zalgebra?ref=main#b5ebfef29a76fffdf1bc5424ac4c9f49fe323df2",
+            .hash = "zalgebra-0.0.0-aaiVSn6AAQB8nPn_r_w4B679hFolc1a8IjNvSjpQMVzC",
+        },
+        .zigimg = .{
+            .url = "git+https://github.com/zigimg/zigimg.git?ref=zigimg_zig_0.17.0#f5fe07487dc17ab40e5daa38211e5782a23f4776",
+            .hash = "zigimg-0.1.0-8_eo2r1LGACI-MYWvYRGp6ZRgQFnecakzOrMZkkwbT42",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c?ref=zig-0.17.x#cfac21f3199b2b02ce3fd7db652aa456421fe4ab",
+            .hash = "translate_c-2.0.2-Q_BUWvBNBwDnyehSiuAJmdFcMYHYGA-Jc3KiYdrV2Dqx",
         },
     },
     .paths = .{
