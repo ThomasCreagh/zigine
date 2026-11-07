@@ -40,7 +40,7 @@ const light_intensity: zalg.Vec3 = wave500.scale(8.0)
 
 const light_home = zalg.Vec3.new(-275, 500, -275);
 const light_speed: f32 = 150.0;
-const light_range: f32 = 90.0;
+const light_range: f32 = 220.0;
 
 const cornell_box_positions: [60]f32 = .{
     // Floor
@@ -254,7 +254,7 @@ pub fn init(
     self.shaders = try ShaderManager.init(io, allocator);
     errdefer self.shaders.deinit();
 
-    self.textures = try TextureManager.init(io, allocator);
+    self.textures = TextureManager.init(io, allocator);
     errdefer self.textures.deinit();
 
     self.light = .{

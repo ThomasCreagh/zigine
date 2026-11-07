@@ -1,75 +1,64 @@
 const std = @import("std");
-const c = @import("../c.zig");
 const Texture = @import("opengl/Texture.zig");
-// const texture_loader = @import("texture_loader.zig");
 
-const gl = c.glad;
 const Io = std.Io;
+const Allocator = std.mem.Allocator;
 
 const TextureManager = @This();
 
-facades: [6]Texture,
-skybox: Texture,
+const assets_root = "assets";
 
-pub fn init(io: Io, allocator: std.mem.Allocator) !TextureManager {
-    var self: TextureManager = undefined;
+pub const Kind = enum {
+    material,
+    skybox,
+};
 
-    self.facades[0] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade0.jpg",
+io: Io,
+allocator: Allocator,
+textures: std.StringHashMapUnmanaged(*Texture) = .empty,
+
+pub fn init(io: Io, allocator: Allocator) TextureManager {
+    return .{
+        .io = io,
+        .allocator = allocator,
+    };
+}
+
+pub fn get(self: *TextureManager, path: []const u8, kind: Kind) !*Texture {
+    if (self.textures.get(path)) |texture| {
+        return texture;
+    }
+
+    const full_path = try std.fs.path.join(
+        self.allocator,
+        &.{ assets_root, path },
     );
-    errdefer self.facades[0].deinit();
+    defer self.allocator.free(full_path);
 
-    self.facades[1] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade1.jpg",
-    );
-    errdefer self.facades[1].deinit();
+    const texture = try self.allocator.create(Texture);
+    errdefer self.allocator.destroy(texture);
 
-    self.facades[2] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade2.jpg",
-    );
-    errdefer self.facades[2].deinit();
+    texture.* = switch (kind) {
+        .material => try Texture.initTileBox(self.io, self.allocator, full_path),
+        .skybox => try Texture.initSkybox(self.io, self.allocator, full_path),
+    };
+    errdefer texture.deinit();
 
-    self.facades[3] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade3.jpg",
-    );
-    errdefer self.facades[3].deinit();
+    const key = try self.allocator.dupe(u8, path);
+    errdefer self.allocator.free(key);
 
-    self.facades[4] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade4.jpg",
-    );
-    errdefer self.facades[4].deinit();
+    try self.textures.put(self.allocator, key, texture);
 
-    self.facades[5] = try Texture.initTileBox(
-        io,
-        allocator,
-        "assets/textures/facade5.jpg",
-    );
-    errdefer self.facades[5].deinit();
-
-    self.skybox = try Texture.initSkybox(
-        io,
-        allocator,
-        "assets/textures/sky.png",
-    );
-    errdefer self.skybox.deinit();
-
-    return self;
+    return texture;
 }
 
 pub fn deinit(self: *TextureManager) void {
-    for (&self.facades) |*texture| {
-        texture.deinit();
+    var entries = self.textures.iterator();
+    while (entries.next()) |entry| {
+        entry.value_ptr.*.deinit();
+        self.allocator.destroy(entry.value_ptr.*);
+        self.allocator.free(entry.key_ptr.*);
     }
 
-    self.skybox.deinit();
+    self.textures.deinit(self.allocator);
 }
