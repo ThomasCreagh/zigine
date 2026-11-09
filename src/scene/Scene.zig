@@ -15,8 +15,14 @@ pub const VTable = struct {
     render: *const fn (
         *anyopaque,
     ) void,
+    enter: *const fn (*anyopaque) void,
     deinit: *const fn (*anyopaque, Allocator) void,
 };
+
+// Called each time this scene becomes the active one
+pub fn enter(self: Scene) void {
+    self.vtable.enter(self.ptr);
+}
 
 pub fn update(self: Scene, dt: f32) void {
     self.vtable.update(self.ptr, dt);

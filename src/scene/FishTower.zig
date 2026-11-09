@@ -28,6 +28,7 @@ const FishTower = @This();
 const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
+    .enter = enter,
     .deinit = deinit,
 };
 
@@ -47,7 +48,6 @@ pub fn init(
     window: *Window,
     input: *Input,
 ) !*FishTower {
-    input.captureCursor(true);
     const self = try allocator.create(FishTower);
     errdefer allocator.destroy(self);
 
@@ -138,6 +138,11 @@ pub fn update(ptr: *anyopaque, dt: f32) void {
     for (self.scene_objects.items) |item| {
         item.update(dt);
     }
+}
+
+pub fn enter(ptr: *anyopaque) void {
+    const self: *FishTower = @ptrCast(@alignCast(ptr));
+    if (self.camera.input) |input| input.captureCursor(true);
 }
 
 pub fn scene(self: *FishTower) Scene {

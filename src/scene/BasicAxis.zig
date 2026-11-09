@@ -18,6 +18,7 @@ const BasicAxis = @This();
 const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
+    .enter = enter,
     .deinit = deinit,
 };
 
@@ -72,6 +73,11 @@ pub fn update(ptr: *anyopaque, dt: f32) void {
     for (self.scene_objects.items) |item| {
         item.update(dt);
     }
+}
+
+pub fn enter(ptr: *anyopaque) void {
+    const self: *BasicAxis = @ptrCast(@alignCast(ptr));
+    if (self.camera.input) |input| input.captureCursor(true);
 }
 
 pub fn scene(self: *BasicAxis) Scene {

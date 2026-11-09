@@ -26,6 +26,7 @@ const CornellBox = @This();
 const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
+    .enter = enter,
     .deinit = deinit,
 };
 
@@ -234,7 +235,6 @@ pub fn init(
     window: *Window,
     input: *Input,
 ) !*CornellBox {
-    input.captureCursor(false);
     const self = try allocator.create(CornellBox);
     errdefer allocator.destroy(self);
 
@@ -386,6 +386,11 @@ fn updateLight(self: *CornellBox, dt: f32) void {
     );
 
     self.light.setPosition(light_home.add(self.light_offset));
+}
+
+pub fn enter(ptr: *anyopaque) void {
+    const self: *CornellBox = @ptrCast(@alignCast(ptr));
+    self.input.captureCursor(false);
 }
 
 pub fn scene(self: *CornellBox) Scene {

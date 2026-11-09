@@ -18,6 +18,7 @@ mouse_dy: f64 = 0, // mouse delta y
 first_mouse: bool = true,
 
 keys_down: [glfw.GLFW_KEY_LAST + 1]bool = @splat(false),
+keys_pressed: [glfw.GLFW_KEY_LAST + 1]bool = @splat(false),
 window: *Window,
 
 pub fn init(self: *Input, window: *Window) void {
@@ -47,6 +48,11 @@ pub fn captureCursor(self: *Input, enable: bool) void {
 pub fn endFrame(self: *Input) void {
     self.mouse_dx = 0;
     self.mouse_dy = 0;
+    @memset(&self.keys_pressed, false);
+}
+
+pub fn wasPressed(self: *const Input, key: c_int) bool {
+    return self.keys_pressed[@intCast(key)];
 }
 
 fn cursorCallback(
@@ -87,6 +93,7 @@ fn keyCallback(
     if (key >= 0 and key <= glfw.GLFW_KEY_LAST) {
         if (action == glfw.GLFW_PRESS) {
             self.keys_down[@intCast(key)] = true;
+            self.keys_pressed[@intCast(key)] = true;
         } else if (action == glfw.GLFW_RELEASE) {
             self.keys_down[@intCast(key)] = false;
         }

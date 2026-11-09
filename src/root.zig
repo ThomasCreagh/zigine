@@ -1,14 +1,18 @@
 const std = @import("std");
 const zalg = @import("zalgebra");
+const c = @import("c.zig");
 
 const Window = @import("Window.zig");
 const Input = @import("Input.zig");
+const Scene = @import("scene/Scene.zig");
 const BasicAxis = @import("scene/BasicAxis.zig");
 const CornellBox = @import("scene/CornellBox.zig");
 const FishTower = @import("scene/FishTower.zig");
 
 const Io = std.Io;
 const Timestamp = Io.Timestamp;
+const ArrayList = std.ArrayList;
+const glfw = c.glfw;
 
 pub const obj_loader = @import("graphics/obj_loader.zig");
 
@@ -26,12 +30,23 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     var input: Input = undefined;
     input.init(&window);
 
-    var scene_impl: *FishTower = try .init(io, allocator, &window, &input);
-    //var scene_impl: *CornellBox = try .init(io, allocator, &window, &input);
-    //var scene_impl: *BasicAxis = try .init(io, allocator, &window, &input);
+    var scenes: ArrayList(Scene) = .empty;
+    defer scenes.deinit(allocator);
 
-    const scene = scene_impl.scene();
-    defer scene.deinit(allocator);
+    var fishtower_scene: *FishTower = try .init(io, allocator, &window, &input);
+    defer fishtower_scene.scene().deinit(allocator);
+    try scenes.append(allocator, fishtower_scene.scene());
+
+    var cornell_scene: *CornellBox = try .init(io, allocator, &window, &input);
+    defer cornell_scene.scene().deinit(allocator);
+    try scenes.append(allocator, cornell_scene.scene());
+
+    // var basic_scene: *BasicAxis = try .init(io, allocator, &window, &input);
+    // defer basic_scene.scene().deinit(allocator);
+    // try scenes.append(allocator, basic_scene.scene());
+
+    var scene = fishtower_scene.scene();
+    scene.enter();
 
     var last = Timestamp.now(io, .awake);
     while (!window.shouldClose()) {
@@ -41,6 +56,8 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
         window.clear();
         window.poll();
 
+        updateSelectedScene(&input, &scene, scenes);
+
         scene.update(dt);
         scene.render();
 
@@ -48,6 +65,25 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
 
         input.endFrame();
     }
+}
+
+fn updateSelectedScene(
+    input: *const Input,
+    scene: *Scene,
+    scenes: ArrayList(Scene),
+) void {
+    if (input.wasPressed(glfw.GLFW_KEY_1)) {
+        scene.* = scenes.items[0];
+        scene.enter();
+    }
+    if (input.wasPressed(glfw.GLFW_KEY_2)) {
+        scene.* = scenes.items[1];
+        scene.enter();
+    }
+    // if (input.wasPressed(glfw.GLFW_KEY_3)) {
+    //     scene.* = scenes.items[2];
+    //     scene.enter();
+    // }
 }
 
 fn getDt(io: Io, last: *Timestamp) f32 {
