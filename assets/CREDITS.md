@@ -1,7 +1,5 @@
 # Asset credits
 
-Record each asset's source, creator and licence when it is added.
-
 | Asset | Path | Source | Creator | Licence |
 |---|---|---|---|---|
 | Fish model and texture | `models/fish/` | https://free3d.com/3d-model/fish---low-poly-82864.html | needlowpoly | Personal Use License|
