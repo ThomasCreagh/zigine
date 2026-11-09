@@ -40,7 +40,7 @@ const light_intensity: zalg.Vec3 = wave500.scale(8.0)
 
 const light_home = zalg.Vec3.new(-275, 500, -275);
 const light_speed: f32 = 150.0;
-const light_range: f32 = 220.0;
+const light_range: f32 = 90.0;
 
 const cornell_box_positions: [60]f32 = .{
     // Floor
@@ -280,9 +280,11 @@ pub fn init(
         allocator,
         &self.shaders.cornell,
         &self.shaders.depth,
-        &cornell_box_positions,
-        &cornell_box_colours,
-        &cornell_indicies,
+        .{
+            .positions = &cornell_box_positions,
+            .indices = &cornell_indicies,
+            .colours = &cornell_box_colours,
+        },
     );
     errdefer cornell_box.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, cornell_box.sceneObject());
@@ -291,9 +293,11 @@ pub fn init(
         allocator,
         &self.shaders.cornell,
         &self.shaders.depth,
-        &cornell_tall_block_positions,
-        &cornell_block_colours,
-        &cornell_indicies,
+        .{
+            .positions = &cornell_tall_block_positions,
+            .indices = &cornell_indicies,
+            .colours = &cornell_block_colours,
+        },
     );
     errdefer cornell_tall_block.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, cornell_tall_block.sceneObject());
@@ -302,9 +306,11 @@ pub fn init(
         allocator,
         &self.shaders.cornell,
         &self.shaders.depth,
-        &cornell_small_block_positions,
-        &cornell_block_colours,
-        &cornell_indicies,
+        .{
+            .positions = &cornell_small_block_positions,
+            .indices = &cornell_indicies,
+            .colours = &cornell_block_colours,
+        },
     );
     errdefer cornell_small_block.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, cornell_small_block.sceneObject());
@@ -335,7 +341,7 @@ pub fn render(ptr: *anyopaque) void {
     self.shadow_map.endDepthPass();
 
     // regular render
-    self.shadow_map.depth.bind(0);
+    self.shadow_map.depth.bind(RenderContext.shadow_map_unit);
     for (self.scene_objects.items) |item| {
         item.render(ctx);
     }

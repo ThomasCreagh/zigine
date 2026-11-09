@@ -5,9 +5,12 @@ const Window = @import("Window.zig");
 const Input = @import("Input.zig");
 const BasicAxis = @import("scene/BasicAxis.zig");
 const CornellBox = @import("scene/CornellBox.zig");
+const FishTower = @import("scene/FishTower.zig");
 
 const Io = std.Io;
 const Timestamp = Io.Timestamp;
+
+pub const obj_loader = @import("graphics/obj_loader.zig");
 
 var fps_timer: f32 = 0.0;
 var frame_count: u32 = 0;
@@ -23,7 +26,8 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     var input: Input = undefined;
     input.init(&window);
 
-    var scene_impl: *CornellBox = try .init(io, allocator, &window, &input);
+    var scene_impl: *FishTower = try .init(io, allocator, &window, &input);
+    //var scene_impl: *CornellBox = try .init(io, allocator, &window, &input);
     //var scene_impl: *BasicAxis = try .init(io, allocator, &window, &input);
 
     const scene = scene_impl.scene();

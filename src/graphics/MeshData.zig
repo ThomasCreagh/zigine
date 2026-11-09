@@ -1,0 +1,5 @@
+positions: []const f32,
+indices: []const u32,
+normals: ?[]const f32 = null,
+uvs: ?[]const f32 = null,
+colours: ?[]const f32 = null,

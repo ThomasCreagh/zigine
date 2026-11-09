@@ -8,6 +8,7 @@ const ShaderManager = @This();
 axis: Shader,
 skybox: Shader,
 cornell: Shader,
+lit: Shader,
 depth: Shader,
 
 pub fn init(
@@ -38,6 +39,14 @@ pub fn init(
     );
     errdefer cornell.deinit();
 
+    var lit = try Shader.init(
+        io,
+        allocator,
+        "assets/shaders/lit.vert",
+        "assets/shaders/lit.frag",
+    );
+    errdefer lit.deinit();
+
     var depth = try Shader.init(
         io,
         allocator,
@@ -50,6 +59,7 @@ pub fn init(
         .axis = axis,
         .skybox = skybox,
         .cornell = cornell,
+        .lit = lit,
         .depth = depth,
     };
 }
@@ -58,5 +68,6 @@ pub fn deinit(self: *ShaderManager) void {
     self.axis.deinit();
     self.skybox.deinit();
     self.cornell.deinit();
+    self.lit.deinit();
     self.depth.deinit();
 }

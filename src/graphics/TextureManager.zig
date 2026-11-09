@@ -1,12 +1,11 @@
 const std = @import("std");
+const assets = @import("../assets.zig");
 const Texture = @import("opengl/Texture.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 const TextureManager = @This();
-
-const assets_root = "assets";
 
 pub const Kind = enum {
     material,
@@ -31,7 +30,7 @@ pub fn get(self: *TextureManager, path: []const u8, kind: Kind) !*Texture {
 
     const full_path = try std.fs.path.join(
         self.allocator,
-        &.{ assets_root, path },
+        &.{ assets.root, path },
     );
     defer self.allocator.free(full_path);
 

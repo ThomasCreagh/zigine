@@ -3,6 +3,7 @@ const zalg = @import("zalgebra");
 
 const c = @import("../../c.zig");
 const Transform = @import("../Transform.zig");
+const Material = @import("../Material.zig");
 const Shader = @import("../opengl/Shader.zig");
 const VertexArray = @import("../opengl/array.zig").VertexArray;
 const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
@@ -16,6 +17,8 @@ const Allocator = std.mem.Allocator;
 
 const Mesh = @This();
 
+pub const MeshData = @import("../MeshData.zig");
+
 const vtable: SceneObject.VTable = .{
     .render = render,
     .renderShadow = renderShadow,
@@ -26,11 +29,13 @@ const vtable: SceneObject.VTable = .{
 
 transform: Transform = .{},
 enable: bool = true,
+material: Material = .{},
 
 vao: VertexArray,
 position_vbo: VertexBuffer,
-colour_vbo: VertexBuffer,
+colour_vbo: ?VertexBuffer,
 normal_vbo: VertexBuffer,
+uv_vbo: ?VertexBuffer,
 index_vbo: IndexBuffer,
 
 index_buffer_len: usize,
@@ -42,6 +47,9 @@ depth_mvp_matrix_id: gl.GLint = 0,
 light_position_id: gl.GLint = 0,
 light_intensity_id: gl.GLint = 0,
 shadow_map_id: gl.GLint = 0,
+diffuse_colour_id: gl.GLint = 0,
+diffuse_texture_id: gl.GLint = 0,
+has_diffuse_texture_id: gl.GLint = 0,
 program: *Shader,
 depth_program: *Shader,
 
@@ -49,9 +57,7 @@ pub fn init(
     allocator: std.mem.Allocator,
     program: *Shader,
     depth_program: *Shader,
-    vertex_buffer_data: []const f32,
-    colour_buffer_data: []const f32,
-    index_buffer_data: []const u32,
+    data: MeshData,
 ) !*Mesh {
     const self = try allocator.create(Mesh);
     errdefer allocator.destroy(self);
@@ -59,28 +65,35 @@ pub fn init(
     const vao = VertexArray.init();
     errdefer vao.deinit();
 
-    const position_vbo = VertexBuffer.init(vertex_buffer_data);
+    const position_vbo = VertexBuffer.init(data.positions);
     errdefer position_vbo.deinit();
 
     position_vbo.bind();
     vao.enableAttrib(0, 3);
 
-    const colour_vbo = VertexBuffer.init(colour_buffer_data);
-    errdefer colour_vbo.deinit();
+    const colour_vbo = initOptionalBuffer(vao, data.colours, 1, 3);
+    errdefer if (colour_vbo) |vbo| vbo.deinit();
 
-    colour_vbo.bind();
-    vao.enableAttrib(1, 3);
+    var generated_normals: ?[]f32 = null;
+    defer if (generated_normals) |normals| allocator.free(normals);
 
-    const normal_buffer_data = try allocator.alloc(f32, vertex_buffer_data.len);
-    defer allocator.free(normal_buffer_data);
-    setNormals(normal_buffer_data, vertex_buffer_data);
-    const normal_vbo = VertexBuffer.init(normal_buffer_data);
+    const normals = data.normals orelse blk: {
+        const generated = try allocator.alloc(f32, data.positions.len);
+        generated_normals = generated;
+        setNormals(generated, data.positions);
+        break :blk generated;
+    };
+
+    const normal_vbo = VertexBuffer.init(normals);
     errdefer normal_vbo.deinit();
 
     normal_vbo.bind();
     vao.enableAttrib(2, 3);
 
-    const index_vbo = IndexBuffer.init(index_buffer_data);
+    const uv_vbo = initOptionalBuffer(vao, data.uvs, 3, 2);
+    errdefer if (uv_vbo) |vbo| vbo.deinit();
+
+    const index_vbo = IndexBuffer.init(data.indices);
     errdefer index_vbo.deinit();
 
     index_vbo.bind();
@@ -92,14 +105,18 @@ pub fn init(
     const light_position_id = gl.glGetUniformLocation(program.id, "lightPosition");
     const light_intensity_id = gl.glGetUniformLocation(program.id, "lightIntensity");
     const shadow_map_id = gl.glGetUniformLocation(program.id, "shadowMap");
+    const diffuse_colour_id = gl.glGetUniformLocation(program.id, "diffuseColour");
+    const diffuse_texture_id = gl.glGetUniformLocation(program.id, "diffuseTexture");
+    const has_diffuse_texture_id = gl.glGetUniformLocation(program.id, "hasDiffuseTexture");
 
     self.* = .{
         .vao = vao,
         .position_vbo = position_vbo,
         .colour_vbo = colour_vbo,
         .normal_vbo = normal_vbo,
+        .uv_vbo = uv_vbo,
         .index_vbo = index_vbo,
-        .index_buffer_len = index_buffer_data.len,
+        .index_buffer_len = data.indices.len,
         .program = program,
         .depth_program = depth_program,
         .mvp_matrix_id = mvp_matrix_id,
@@ -109,6 +126,9 @@ pub fn init(
         .light_position_id = light_position_id,
         .light_intensity_id = light_intensity_id,
         .shadow_map_id = shadow_map_id,
+        .diffuse_colour_id = diffuse_colour_id,
+        .diffuse_texture_id = diffuse_texture_id,
+        .has_diffuse_texture_id = has_diffuse_texture_id,
     };
 
     return self;
@@ -157,7 +177,18 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
         },
     }
 
-    gl.glUniform1i(self.shadow_map_id, 0);
+    gl.glUniform1i(self.shadow_map_id, RenderContext.shadow_map_unit);
+
+    gl.glUniform3fv(self.diffuse_colour_id, 1, @ptrCast(&self.material.diffuse_colour.data));
+    gl.glUniform1i(self.diffuse_texture_id, RenderContext.diffuse_unit);
+    gl.glUniform1i(
+        self.has_diffuse_texture_id,
+        @intFromBool(self.material.diffuse_texture != null),
+    );
+
+    if (self.material.diffuse_texture) |texture| {
+        texture.bind(RenderContext.diffuse_unit);
+    }
 
     self.draw();
 }
@@ -201,8 +232,9 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     const self: *Mesh = @ptrCast(@alignCast(ptr));
     self.vao.deinit();
     self.position_vbo.deinit();
-    self.colour_vbo.deinit();
+    if (self.colour_vbo) |vbo| vbo.deinit();
     self.normal_vbo.deinit();
+    if (self.uv_vbo) |vbo| vbo.deinit();
     self.index_vbo.deinit();
     allocator.destroy(self);
 }
@@ -216,6 +248,21 @@ fn draw(self: *const Mesh) void {
         gl.GL_UNSIGNED_INT, // type
         null, // element array buffer offset
     );
+}
+
+fn initOptionalBuffer(
+    vao: VertexArray,
+    buffer_data: ?[]const f32,
+    attrib: u32,
+    size: i32,
+) ?VertexBuffer {
+    const vertices = buffer_data orelse return null;
+
+    const vbo = VertexBuffer.init(vertices);
+    vbo.bind();
+    vao.enableAttrib(attrib, size);
+
+    return vbo;
 }
 
 fn setNormals(normal_array: []f32, vertex_array: []const f32) void {
