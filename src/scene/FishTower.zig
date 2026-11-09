@@ -113,8 +113,10 @@ pub fn render(ptr: *anyopaque) void {
     const ctx: RenderContext = .{
         .view = self.camera.viewMatrix(),
         .projection = self.camera.projectionMatrix(),
-        .light = &self.light,
-        .light_view_projection = self.light.viewProjectionMatrix(),
+        .lighting = .{
+            .light = &self.light,
+            .shadow_view_projection = self.light.viewProjectionMatrix(),
+        },
     };
 
     // for shadows

@@ -11,7 +11,7 @@ const FrameBuffer = @import("../graphics/opengl/FrameBuffer.zig");
 const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
 
-//const Axis = @import("../graphics/objects/Axis.zig");
+const Axis = @import("../graphics/objects/Axis.zig");
 const Mesh = @import("../graphics/objects/Mesh.zig");
 const Light = @import("../graphics/light.zig").Light;
 
@@ -267,14 +267,14 @@ pub fn init(
     self.shadow_map = try FrameBuffer.initDepth(2048, 2048);
     errdefer self.shadow_map.deinit();
 
-    // const axis = try Axis.init(
-    //     allocator,
-    //     &self.shaders.axis,
-    // );
-    // errdefer axis.sceneObject().deinit(allocator);
-    // axis.transform.scale = axis.transform.scale.scale(10);
-    // axis.enable = true;
-    // try self.scene_objects.append(allocator, axis.sceneObject());
+    const axis = try Axis.init(
+        allocator,
+        &self.shaders.axis,
+    );
+    errdefer axis.sceneObject().deinit(allocator);
+    axis.transform.scale = axis.transform.scale.scale(10);
+    axis.enable = false;
+    try self.scene_objects.append(allocator, axis.sceneObject());
 
     const cornell_box = try Mesh.init(
         allocator,
@@ -329,8 +329,10 @@ pub fn render(ptr: *anyopaque) void {
     const ctx: RenderContext = .{
         .view = view,
         .projection = projection,
-        .light = &self.light,
-        .light_view_projection = self.light.viewProjectionMatrix(),
+        .lighting = .{
+            .light = &self.light,
+            .shadow_view_projection = self.light.viewProjectionMatrix(),
+        },
     };
 
     // for shadows

@@ -41,9 +41,9 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     defer cornell_scene.scene().deinit(allocator);
     try scenes.append(allocator, cornell_scene.scene());
 
-    // var basic_scene: *BasicAxis = try .init(io, allocator, &window, &input);
-    // defer basic_scene.scene().deinit(allocator);
-    // try scenes.append(allocator, basic_scene.scene());
+    var basic_scene: *BasicAxis = try .init(io, allocator, &window, &input);
+    defer basic_scene.scene().deinit(allocator);
+    try scenes.append(allocator, basic_scene.scene());
 
     var scene = fishtower_scene.scene();
     scene.enter();
@@ -80,10 +80,10 @@ fn updateSelectedScene(
         scene.* = scenes.items[1];
         scene.enter();
     }
-    // if (input.wasPressed(glfw.GLFW_KEY_3)) {
-    //     scene.* = scenes.items[2];
-    //     scene.enter();
-    // }
+    if (input.wasPressed(glfw.GLFW_KEY_3)) {
+        scene.* = scenes.items[2];
+        scene.enter();
+    }
 }
 
 fn getDt(io: Io, last: *Timestamp) f32 {

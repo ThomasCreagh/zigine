@@ -3,6 +3,7 @@ const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
 const ShaderManager = @import("../graphics/ShaderManager.zig");
+const RenderContext = @import("../graphics/RenderContext.zig");
 const Camera = @import("../graphics/Camera.zig");
 const Axis = @import("../graphics/objects/Axis.zig");
 const Window = @import("../Window.zig");
@@ -50,7 +51,7 @@ pub fn init(
     errdefer axis.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, axis.sceneObject());
 
-    gl.glClearColor(0.3, 0.4, 0.5, 0.0); // Background
+    gl.glClearColor(0.0, 0.0, 0.0, 0.0); // Background
 
     return self;
 }
@@ -61,8 +62,13 @@ pub fn render(ptr: *anyopaque) void {
     const view = self.camera.viewMatrix();
     const projection = self.camera.projectionMatrix();
 
+    const ctx: RenderContext = .{
+        .view = view,
+        .projection = projection,
+    };
+
     for (self.scene_objects.items) |item| {
-        item.render(view, projection);
+        item.render(ctx);
     }
 }
 

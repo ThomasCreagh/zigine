@@ -50,6 +50,8 @@ shadow_map_id: gl.GLint = 0,
 diffuse_colour_id: gl.GLint = 0,
 diffuse_texture_id: gl.GLint = 0,
 has_diffuse_texture_id: gl.GLint = 0,
+has_light_id: gl.GLint = 0,
+has_shadow_id: gl.GLint = 0,
 program: *Shader,
 depth_program: *Shader,
 
@@ -108,6 +110,8 @@ pub fn init(
     const diffuse_colour_id = gl.glGetUniformLocation(program.id, "diffuseColour");
     const diffuse_texture_id = gl.glGetUniformLocation(program.id, "diffuseTexture");
     const has_diffuse_texture_id = gl.glGetUniformLocation(program.id, "hasDiffuseTexture");
+    const has_light_id = gl.glGetUniformLocation(program.id, "hasLight");
+    const has_shadow_id = gl.glGetUniformLocation(program.id, "hasShadow");
 
     self.* = .{
         .vao = vao,
@@ -129,6 +133,8 @@ pub fn init(
         .diffuse_colour_id = diffuse_colour_id,
         .diffuse_texture_id = diffuse_texture_id,
         .has_diffuse_texture_id = has_diffuse_texture_id,
+        .has_light_id = has_light_id,
+        .has_shadow_id = has_shadow_id,
     };
 
     return self;
@@ -163,21 +169,7 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
         @ptrCast(&model.data[0][0]),
     );
 
-    gl.glUniformMatrix4fv(
-        self.light_vp_matrix_id,
-        1,
-        gl.GL_FALSE,
-        @ptrCast(&ctx.light_view_projection.data[0][0]),
-    );
-
-    switch (ctx.light.*) {
-        .pointlight => |light| {
-            gl.glUniform3fv(self.light_position_id, 1, @ptrCast(&light.position.data));
-            gl.glUniform3fv(self.light_intensity_id, 1, @ptrCast(&light.intensity.data));
-        },
-    }
-
-    gl.glUniform1i(self.shadow_map_id, RenderContext.shadow_map_unit);
+    self.uploadLighting(ctx.lighting);
 
     gl.glUniform3fv(self.diffuse_colour_id, 1, @ptrCast(&self.material.diffuse_colour.data));
     gl.glUniform1i(self.diffuse_texture_id, RenderContext.diffuse_unit);
@@ -193,14 +185,47 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     self.draw();
 }
 
+fn uploadLighting(self: *Mesh, lighting: ?RenderContext.Lighting) void {
+    const lit = lighting orelse {
+        gl.glUniform1i(self.has_light_id, 0);
+        gl.glUniform1i(self.has_shadow_id, 0);
+        return;
+    };
+
+    gl.glUniform1i(self.has_light_id, 1);
+    switch (lit.light.*) {
+        .pointlight => |light| {
+            gl.glUniform3fv(self.light_position_id, 1, @ptrCast(&light.position.data));
+            gl.glUniform3fv(self.light_intensity_id, 1, @ptrCast(&light.intensity.data));
+        },
+    }
+
+    const shadow_view_projection = lit.shadow_view_projection orelse {
+        gl.glUniform1i(self.has_shadow_id, 0);
+        return;
+    };
+
+    gl.glUniform1i(self.has_shadow_id, 1);
+    gl.glUniformMatrix4fv(
+        self.light_vp_matrix_id,
+        1,
+        gl.GL_FALSE,
+        @ptrCast(&shadow_view_projection.data[0][0]),
+    );
+    gl.glUniform1i(self.shadow_map_id, RenderContext.shadow_map_unit);
+}
+
 pub fn renderShadow(ptr: *anyopaque, ctx: RenderContext) void {
     const self: *Mesh = @ptrCast(@alignCast(ptr));
 
     if (self.enable == false) return;
 
+    const lighting = ctx.lighting orelse return;
+    const shadow_view_projection = lighting.shadow_view_projection orelse return;
+
     const model = self.transform.matrix();
 
-    const mvp = zalg.Mat4.mul(ctx.light_view_projection, model);
+    const mvp = zalg.Mat4.mul(shadow_view_projection, model);
 
     self.depth_program.bind();
 
