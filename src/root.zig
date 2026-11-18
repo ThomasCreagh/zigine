@@ -15,6 +15,7 @@ const ArrayList = std.ArrayList;
 const glfw = c.glfw;
 
 pub const obj_loader = @import("graphics/obj_loader.zig");
+pub const gltf_loader = @import("graphics/gltf_loader.zig");
 
 var fps_timer: f32 = 0.0;
 var frame_count: u32 = 0;
