@@ -54,8 +54,7 @@ test "float vec3" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const doc = try document(
-        &arena,
+    const doc = try document(&arena,
         \\{"bufferView":0,"componentType":5126,"count":2,"type":"VEC3"}
     ,
         \\{"buffer":0,"byteLength":24}
@@ -70,8 +69,7 @@ test "u16 indices widen to u32" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const doc = try document(
-        &arena,
+    const doc = try document(&arena,
         \\{"bufferView":0,"componentType":5123,"count":3,"type":"SCALAR"}
     ,
         \\{"buffer":0,"byteLength":6}
@@ -87,8 +85,7 @@ test "offsets and stride" {
     defer arena.deinit();
 
     // Two interleaved vertices of position (2 floats) and colour (1 float), after 1 float of padding
-    const doc = try document(
-        &arena,
+    const doc = try document(&arena,
         \\{"bufferView":0,"byteOffset":8,"componentType":5126,"count":2,"type":"SCALAR"}
     ,
         \\{"buffer":0,"byteOffset":4,"byteLength":24,"byteStride":12}
@@ -103,8 +100,7 @@ test "normalized u8" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const doc = try document(
-        &arena,
+    const doc = try document(&arena,
         \\{"bufferView":0,"componentType":5121,"normalized":true,"count":2,"type":"SCALAR"}
     ,
         \\{"buffer":0,"byteLength":2}
@@ -120,8 +116,7 @@ test "bad accessors" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const doc = try document(
-        &arena,
+    const doc = try document(&arena,
         \\{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
         \\{"bufferView":0,"componentType":5126,"count":1,"type":"SCALAR"},
         \\{"bufferView":0,"componentType":5121,"count":1,"type":"SCALAR"},
@@ -139,4 +134,126 @@ test "bad accessors" {
     try testing.expectError(error.UnsupportedSparseAccessor, gltf_loader.readAccessor(f32, allocator, &doc, buffers, 3));
     try testing.expectError(error.MissingBufferView, gltf_loader.readAccessor(f32, allocator, &doc, buffers, 4));
     try testing.expectError(error.InvalidIndex, gltf_loader.readAccessor(f32, allocator, &doc, buffers, 5));
+}
+
+const mesh_positions = [_]f32{ 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+const mesh_normals = [_]f32{ 0, 0, 1, 0, 0, 1, 0, 0, 1 };
+const mesh_indices = [_]u16{ 0, 1, 2 };
+const mesh_joints = [_]u8{ 0, 1, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0 };
+const mesh_weights = [_]f32{ 0.5, 0.5, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
+const bad_indices = [_]u16{ 0, 1, 5 };
+
+// Accessors 0-4 are valid, 5-7 are wrong in one way each
+const mesh_document =
+    \\"accessors":[
+    \\  {"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
+    \\  {"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},
+    \\  {"bufferView":2,"componentType":5123,"count":3,"type":"SCALAR"},
+    \\  {"bufferView":3,"componentType":5121,"count":3,"type":"VEC4"},
+    \\  {"bufferView":4,"componentType":5126,"count":3,"type":"VEC4"},
+    \\  {"bufferView":1,"componentType":5126,"count":2,"type":"VEC3"},
+    \\  {"bufferView":0,"componentType":5126,"count":3,"type":"VEC2"},
+    \\  {"bufferView":5,"componentType":5123,"count":3,"type":"SCALAR"}
+    \\],
+    \\"bufferViews":[
+    \\  {"buffer":0,"byteLength":36},
+    \\  {"buffer":1,"byteLength":36},
+    \\  {"buffer":2,"byteLength":6},
+    \\  {"buffer":3,"byteLength":12},
+    \\  {"buffer":4,"byteLength":48},
+    \\  {"buffer":5,"byteLength":6}
+    \\],
+    \\"materials":[{"pbrMetallicRoughness":{"baseColorFactor":[0.5,0.25,1,1]}}]
+;
+
+fn meshModel(meshes: []const u8) !gltf_loader.Model {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const json = try std.mem.concat(arena.allocator(), u8, &.{ "{", mesh_document, ",\"meshes\":[", meshes, "]}" });
+    const doc = try parse(&arena, json);
+    const buffers: []const []const u8 = &.{
+        std.mem.sliceAsBytes(&mesh_positions),
+        std.mem.sliceAsBytes(&mesh_normals),
+        std.mem.sliceAsBytes(&mesh_indices),
+        &mesh_joints,
+        std.mem.sliceAsBytes(&mesh_weights),
+        std.mem.sliceAsBytes(&bad_indices),
+    };
+
+    return gltf_loader.buildModel(testing.allocator, &doc, buffers);
+}
+
+test "triangle primitive" {
+    var model = try meshModel(
+        \\{"name":"tri","primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2,"material":0}]}
+    );
+    defer model.deinit();
+    const part = model.parts[0];
+
+    try testing.expectEqual(1, model.parts.len);
+    try testing.expectEqualStrings("tri", part.name);
+    try testing.expectEqualSlices(f32, &mesh_positions, part.data.positions);
+    try testing.expectEqualSlices(f32, &mesh_normals, part.data.normals.?);
+    try testing.expectEqualSlices(u32, &.{ 0, 1, 2 }, part.data.indices);
+    try testing.expectEqual(null, part.data.uvs);
+    try testing.expectEqual(null, part.data.joints);
+    try testing.expectEqual(0.5, part.diffuse_colour.data[0]);
+    try testing.expectEqual(0.25, part.diffuse_colour.data[1]);
+}
+
+test "generated indices and default colour" {
+    var model = try meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0}}]}
+    );
+    defer model.deinit();
+    const part = model.parts[0];
+
+    try testing.expectEqualStrings("", part.name);
+    try testing.expectEqualSlices(u32, &.{ 0, 1, 2 }, part.data.indices);
+    try testing.expectEqual(1.0, part.diffuse_colour.data[0]);
+}
+
+test "skin attributes" {
+    var model = try meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0,"JOINTS_0":3,"WEIGHTS_0":4}}]}
+    );
+    defer model.deinit();
+    const part = model.parts[0];
+
+    try testing.expectEqualSlices(u16, &.{ 0, 1, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0 }, part.data.joints.?);
+    try testing.expectEqualSlices(f32, &mesh_weights, part.data.weights.?);
+}
+
+test "one part per primitive" {
+    var model = try meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}]},
+        \\{"primitives":[{"attributes":{"POSITION":0}}]}
+    );
+    defer model.deinit();
+
+    try testing.expectEqual(3, model.parts.len);
+    try testing.expectEqual(0, model.parts[1].mesh);
+    try testing.expectEqual(1, model.parts[2].mesh);
+}
+
+test "bad primitives" {
+    try testing.expectError(error.UnsupportedPrimitiveMode, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0},"mode":1}]}
+    ));
+    try testing.expectError(error.IncompleteSkinAttributes, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0,"JOINTS_0":3}}]}
+    ));
+    try testing.expectError(error.AttributeCountMismatch, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0,"NORMAL":5}}]}
+    ));
+    try testing.expectError(error.UnexpectedAccessorType, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":6}}]}
+    ));
+    try testing.expectError(error.InvalidIndex, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0},"indices":7}]}
+    ));
+    try testing.expectError(error.InvalidIndex, meshModel(
+        \\{"primitives":[{"attributes":{"POSITION":0},"material":3}]}
+    ));
 }

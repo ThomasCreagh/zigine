@@ -1,6 +1,25 @@
 const std = @import("std");
+const zalg = @import("zalgebra");
+const MeshData = @import("MeshData.zig");
 
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+
+pub const Part = struct {
+    name: []const u8,
+    mesh: usize,
+    data: MeshData,
+    diffuse_colour: zalg.Vec3,
+};
+
+pub const Model = struct {
+    arena: std.heap.ArenaAllocator,
+    parts: []Part,
+
+    pub fn deinit(self: *Model) void {
+        self.arena.deinit();
+    }
+};
 
 // Field names below mirror the glTF JSON keys so std.json can fill them directly.
 
@@ -77,6 +96,13 @@ pub const Mesh = struct {
     primitives: []const Primitive,
 };
 
+pub const Material = struct {
+    name: ?[]const u8 = null,
+    pbrMetallicRoughness: struct {
+        baseColorFactor: [4]f32 = .{ 1, 1, 1, 1 },
+    } = .{},
+};
+
 pub const Skin = struct {
     name: ?[]const u8 = null,
     joints: []const usize,
@@ -133,6 +159,7 @@ pub const Document = struct {
     scenes: []const Scene = &.{},
     nodes: []const Node = &.{},
     meshes: []const Mesh = &.{},
+    materials: []const Material = &.{},
     skins: []const Skin = &.{},
     animations: []const Animation = &.{},
     accessors: []const Accessor = &.{},
@@ -145,6 +172,34 @@ pub fn parseDocument(allocator: Allocator, source: []const u8) !Document {
     return std.json.parseFromSliceLeaky(Document, allocator, source, .{
         .ignore_unknown_fields = true,
     });
+}
+
+pub fn buildModel(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+) !Model {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const result = arena.allocator();
+
+    var parts: ArrayList(Part) = .empty;
+
+    for (document.meshes, 0..) |mesh, mesh_index| {
+        for (mesh.primitives) |primitive| {
+            try parts.append(result, .{
+                .name = try result.dupe(u8, mesh.name orelse ""),
+                .mesh = mesh_index,
+                .data = try readPrimitive(result, document, buffers, primitive),
+                .diffuse_colour = try diffuseColour(document, primitive.material),
+            });
+        }
+    }
+
+    return .{
+        .arena = arena,
+        .parts = parts.items,
+    };
 }
 
 /// Reads every component of an accessor into a flat slice, e.g. a VEC3 accessor
@@ -194,6 +249,95 @@ pub fn readAccessor(
     }
 
     return values;
+}
+
+fn readPrimitive(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+    primitive: Primitive,
+) !MeshData {
+    if (primitive.mode != 4) return error.UnsupportedPrimitiveMode;
+
+    const attributes = primitive.attributes;
+    if ((attributes.JOINTS_0 == null) != (attributes.WEIGHTS_0 == null)) {
+        return error.IncompleteSkinAttributes;
+    }
+
+    if (attributes.POSITION >= document.accessors.len) return error.InvalidIndex;
+    const vertex_count = document.accessors[attributes.POSITION].count;
+
+    return .{
+        .positions = try readAttribute(f32, allocator, document, buffers, attributes.POSITION, .VEC3, vertex_count),
+        .indices = try readIndices(allocator, document, buffers, primitive.indices, vertex_count),
+        .normals = if (attributes.NORMAL) |index|
+            try readAttribute(f32, allocator, document, buffers, index, .VEC3, vertex_count)
+        else
+            null,
+        .uvs = if (attributes.TEXCOORD_0) |index|
+            try readAttribute(f32, allocator, document, buffers, index, .VEC2, vertex_count)
+        else
+            null,
+        .joints = if (attributes.JOINTS_0) |index|
+            try readAttribute(u16, allocator, document, buffers, index, .VEC4, vertex_count)
+        else
+            null,
+        .weights = if (attributes.WEIGHTS_0) |index|
+            try readAttribute(f32, allocator, document, buffers, index, .VEC4, vertex_count)
+        else
+            null,
+    };
+}
+
+fn readAttribute(
+    comptime T: type,
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+    index: usize,
+    expected: AccessorType,
+    vertex_count: usize,
+) ![]T {
+    const values = try readAccessor(T, allocator, document, buffers, index);
+
+    const accessor = document.accessors[index];
+    if (accessor.type != expected) return error.UnexpectedAccessorType;
+    if (accessor.count != vertex_count) return error.AttributeCountMismatch;
+
+    return values;
+}
+
+fn readIndices(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+    index: ?usize,
+    vertex_count: usize,
+) ![]u32 {
+    // Primitives without indices draw their vertices in order
+    const accessor_index = index orelse {
+        const indices = try allocator.alloc(u32, vertex_count);
+        for (indices, 0..) |*value, i| value.* = @intCast(i);
+        return indices;
+    };
+
+    const indices = try readAccessor(u32, allocator, document, buffers, accessor_index);
+    if (document.accessors[accessor_index].type != .SCALAR) return error.UnexpectedAccessorType;
+    if (indices.len % 3 != 0) return error.InvalidTriangles;
+
+    for (indices) |value| {
+        if (value >= vertex_count) return error.InvalidIndex;
+    }
+
+    return indices;
+}
+
+fn diffuseColour(document: *const Document, material: ?usize) !zalg.Vec3 {
+    const index = material orelse return zalg.Vec3.new(1, 1, 1);
+    if (index >= document.materials.len) return error.InvalidIndex;
+
+    const colour = document.materials[index].pbrMetallicRoughness.baseColorFactor;
+    return zalg.Vec3.new(colour[0], colour[1], colour[2]);
 }
 
 fn readComponent(comptime T: type, bytes: []const u8, accessor: Accessor) !T {
