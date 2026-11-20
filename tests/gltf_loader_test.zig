@@ -84,7 +84,6 @@ test "offsets and stride" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    // Two interleaved vertices of position (2 floats) and colour (1 float), after 1 float of padding
     const doc = try document(&arena,
         \\{"bufferView":0,"byteOffset":8,"componentType":5126,"count":2,"type":"SCALAR"}
     ,
@@ -143,7 +142,6 @@ const mesh_joints = [_]u8{ 0, 1, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0 };
 const mesh_weights = [_]f32{ 0.5, 0.5, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
 const bad_indices = [_]u16{ 0, 1, 5 };
 
-// Accessors 0-4 are valid, 5-7 are wrong in one way each
 const mesh_document =
     \\"accessors":[
     \\  {"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
@@ -255,5 +253,144 @@ test "bad primitives" {
     ));
     try testing.expectError(error.InvalidIndex, meshModel(
         \\{"primitives":[{"attributes":{"POSITION":0},"material":3}]}
+    ));
+}
+
+const key_times = [_]f32{ 0, 1, 2 };
+const key_translations = [_]f32{ 0, 0, 0, 1, 0, 0, 2, 0, 0 };
+const key_rotations = [_]f32{ 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1 };
+const bind_matrices = blk: {
+    var values: [32]f32 = undefined;
+    for (&values, 0..) |*value, i| value.* = @floatFromInt(i);
+    break :blk values;
+};
+
+const skeleton_document =
+    \\"accessors":[
+    \\  {"bufferView":0,"componentType":5126,"count":3,"type":"SCALAR"},
+    \\  {"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},
+    \\  {"bufferView":2,"componentType":5126,"count":3,"type":"VEC4"},
+    \\  {"bufferView":3,"componentType":5126,"count":2,"type":"MAT4"},
+    \\  {"bufferView":1,"componentType":5126,"count":2,"type":"VEC3"}
+    \\],
+    \\"bufferViews":[
+    \\  {"buffer":0,"byteLength":12},
+    \\  {"buffer":1,"byteLength":36},
+    \\  {"buffer":2,"byteLength":48},
+    \\  {"buffer":3,"byteLength":128}
+    \\]
+;
+
+fn skeletonModel(extra: []const u8) !gltf_loader.Model {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const json = try std.mem.concat(arena.allocator(), u8, &.{ "{", skeleton_document, ",", extra, "}" });
+    const doc = try parse(&arena, json);
+    const buffers: []const []const u8 = &.{
+        std.mem.sliceAsBytes(&key_times),
+        std.mem.sliceAsBytes(&key_translations),
+        std.mem.sliceAsBytes(&key_rotations),
+        std.mem.sliceAsBytes(&bind_matrices),
+    };
+
+    return gltf_loader.buildModel(testing.allocator, &doc, buffers);
+}
+
+test "node hierarchy" {
+    var model = try skeletonModel(
+        \\"nodes":[
+        \\  {"name":"Spine","children":[2]},
+        \\  {"name":"Root","children":[0],"translation":[1,2,3]},
+        \\  {"name":"Head","rotation":[0,0,1,0]},
+        \\  {"name":"Prop"}
+        \\]
+    );
+    defer model.deinit();
+    const nodes = model.nodes;
+
+    try testing.expectEqual(1, nodes[0].parent);
+    try testing.expectEqual(null, nodes[1].parent);
+    try testing.expectEqual(0, nodes[2].parent);
+    try testing.expectEqualSlices(usize, &.{ 1, 3, 0, 2 }, model.node_order);
+    try testing.expectEqual(1.0, nodes[1].translation.data[0]);
+    try testing.expectEqual(1.0, nodes[2].rotation.z);
+    try testing.expectEqual(0.0, nodes[2].rotation.w);
+    try testing.expectEqual(1.0, nodes[3].scale.data[0]);
+}
+
+test "bad nodes" {
+    try testing.expectError(error.MultipleParents, skeletonModel(
+        \\"nodes":[{"children":[2]},{"children":[2]},{}]
+    ));
+    try testing.expectError(error.NodeCycle, skeletonModel(
+        \\"nodes":[{"children":[1]},{"children":[0]}]
+    ));
+    try testing.expectError(error.InvalidIndex, skeletonModel(
+        \\"nodes":[{"children":[5]}]
+    ));
+    try testing.expectError(error.InvalidIndex, skeletonModel(
+        \\"nodes":[{"skin":0}]
+    ));
+}
+
+test "skins" {
+    var model = try skeletonModel(
+        \\"nodes":[{},{}],
+        \\"skins":[{"joints":[0,1],"inverseBindMatrices":3},{"joints":[1]}]
+    );
+    defer model.deinit();
+    const matrices = model.skins[0].inverse_bind_matrices;
+
+    try testing.expectEqualSlices(usize, &.{ 0, 1 }, model.skins[0].joints);
+    try testing.expectEqual(12.0, matrices[0].data[3][0]);
+    try testing.expectEqual(16.0, matrices[1].data[0][0]);
+    try testing.expectEqual(1.0, model.skins[1].inverse_bind_matrices[0].data[0][0]);
+    try testing.expectEqual(0.0, model.skins[1].inverse_bind_matrices[0].data[3][0]);
+}
+
+test "animation clip" {
+    var model = try skeletonModel(
+        \\"nodes":[{},{}],
+        \\"animations":[{
+        \\  "name":"walk",
+        \\  "channels":[
+        \\    {"sampler":0,"target":{"node":0,"path":"translation"}},
+        \\    {"sampler":1,"target":{"node":1,"path":"rotation"}},
+        \\    {"sampler":0,"target":{"node":0,"path":"weights"}},
+        \\    {"sampler":0,"target":{"path":"scale"}}
+        \\  ],
+        \\  "samplers":[{"input":0,"output":1},{"input":0,"output":2,"interpolation":"STEP"}]
+        \\}]
+    );
+    defer model.deinit();
+    const clip = model.clips[0];
+
+    try testing.expectEqualStrings("walk", clip.name);
+    try testing.expectEqual(2.0, clip.duration);
+    try testing.expectEqual(2, clip.tracks.len);
+    try testing.expectEqualSlices(f32, &key_times, clip.tracks[0].times);
+    try testing.expectEqualSlices(f32, &key_translations, clip.tracks[0].values);
+    try testing.expectEqual(.rotation, clip.tracks[1].path);
+    try testing.expectEqual(.STEP, clip.tracks[1].interpolation);
+    try testing.expectEqual(1, clip.tracks[1].node);
+}
+
+test "bad animations" {
+    try testing.expectError(error.UnexpectedAccessorType, skeletonModel(
+        \\"nodes":[{}],
+        \\"animations":[{"channels":[{"sampler":0,"target":{"node":0,"path":"rotation"}}],"samplers":[{"input":0,"output":1}]}]
+    ));
+    try testing.expectError(error.AttributeCountMismatch, skeletonModel(
+        \\"nodes":[{}],
+        \\"animations":[{"channels":[{"sampler":0,"target":{"node":0,"path":"scale"}}],"samplers":[{"input":0,"output":4}]}]
+    ));
+    try testing.expectError(error.AttributeCountMismatch, skeletonModel(
+        \\"nodes":[{}],
+        \\"animations":[{"channels":[{"sampler":0,"target":{"node":0,"path":"scale"}}],"samplers":[{"input":0,"output":1,"interpolation":"CUBICSPLINE"}]}]
+    ));
+    try testing.expectError(error.InvalidIndex, skeletonModel(
+        \\"nodes":[{}],
+        \\"animations":[{"channels":[{"sampler":5,"target":{"node":0,"path":"scale"}}],"samplers":[]}]
     ));
 }

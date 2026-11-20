@@ -12,16 +12,53 @@ pub const Part = struct {
     diffuse_colour: zalg.Vec3,
 };
 
+pub const ModelNode = struct {
+    name: []const u8,
+    parent: ?usize,
+    children: []const usize,
+    mesh: ?usize,
+    skin: ?usize,
+    translation: zalg.Vec3,
+    rotation: zalg.Quat,
+    scale: zalg.Vec3,
+    matrix: ?zalg.Mat4,
+};
+
+pub const ModelSkin = struct {
+    name: []const u8,
+    joints: []const usize,
+    inverse_bind_matrices: []zalg.Mat4,
+};
+
+pub const Track = struct {
+    node: usize,
+    path: Path,
+    interpolation: Interpolation,
+    times: []f32,
+    // 3 floats per key for translation and scale, 4 for rotation (x, y, z, w)
+    values: []f32,
+};
+
+pub const Clip = struct {
+    name: []const u8,
+    duration: f32,
+    tracks: []Track,
+};
+
 pub const Model = struct {
     arena: std.heap.ArenaAllocator,
     parts: []Part,
+    nodes: []ModelNode,
+    node_order: []usize,
+    skins: []ModelSkin,
+    clips: []Clip,
 
     pub fn deinit(self: *Model) void {
         self.arena.deinit();
     }
 };
 
-// Field names below mirror the glTF JSON keys so std.json can fill them directly.
+// Field names mirror glTF JSON keys so std.json can fill them directly
 
 pub const ComponentType = enum(u32) {
     byte = 5120,
@@ -110,9 +147,13 @@ pub const Skin = struct {
     skeleton: ?usize = null,
 };
 
+pub const Path = enum { translation, rotation, scale, weights };
+
+pub const Interpolation = enum { LINEAR, STEP, CUBICSPLINE };
+
 pub const Target = struct {
     node: ?usize = null,
-    path: enum { translation, rotation, scale, weights },
+    path: Path,
 };
 
 pub const Channel = struct {
@@ -123,7 +164,7 @@ pub const Channel = struct {
 pub const Sampler = struct {
     input: usize,
     output: usize,
-    interpolation: enum { LINEAR, STEP, CUBICSPLINE } = .LINEAR,
+    interpolation: Interpolation = .LINEAR,
 };
 
 pub const Animation = struct {
@@ -167,7 +208,6 @@ pub const Document = struct {
     buffers: []const Buffer = &.{},
 };
 
-/// Strings in the result may point into `source`, so keep it alive as long as the document.
 pub fn parseDocument(allocator: Allocator, source: []const u8) !Document {
     return std.json.parseFromSliceLeaky(Document, allocator, source, .{
         .ignore_unknown_fields = true,
@@ -196,14 +236,18 @@ pub fn buildModel(
         }
     }
 
+    const nodes = try readNodes(result, document);
+
     return .{
         .arena = arena,
         .parts = parts.items,
+        .nodes = nodes,
+        .node_order = try orderNodes(result, nodes),
+        .skins = try readSkins(result, document, buffers),
+        .clips = try readClips(result, document, buffers),
     };
 }
 
-/// Reads every component of an accessor into a flat slice, e.g. a VEC3 accessor
-/// with 10 elements gives 30 values.
 pub fn readAccessor(
     comptime T: type,
     allocator: Allocator,
@@ -314,7 +358,6 @@ fn readIndices(
     index: ?usize,
     vertex_count: usize,
 ) ![]u32 {
-    // Primitives without indices draw their vertices in order
     const accessor_index = index orelse {
         const indices = try allocator.alloc(u32, vertex_count);
         for (indices, 0..) |*value, i| value.* = @intCast(i);
@@ -338,6 +381,151 @@ fn diffuseColour(document: *const Document, material: ?usize) !zalg.Vec3 {
 
     const colour = document.materials[index].pbrMetallicRoughness.baseColorFactor;
     return zalg.Vec3.new(colour[0], colour[1], colour[2]);
+}
+
+fn readNodes(allocator: Allocator, document: *const Document) ![]ModelNode {
+    const nodes = try allocator.alloc(ModelNode, document.nodes.len);
+
+    for (document.nodes, nodes) |node, *result| {
+        if (node.mesh) |mesh| if (mesh >= document.meshes.len) return error.InvalidIndex;
+        if (node.skin) |skin| if (skin >= document.skins.len) return error.InvalidIndex;
+
+        result.* = .{
+            .name = try allocator.dupe(u8, node.name orelse ""),
+            .parent = null,
+            .children = try allocator.dupe(usize, node.children),
+            .mesh = node.mesh,
+            .skin = node.skin,
+            .translation = zalg.Vec3.new(node.translation[0], node.translation[1], node.translation[2]),
+            .rotation = zalg.Quat.fromSlice(&node.rotation),
+            .scale = zalg.Vec3.new(node.scale[0], node.scale[1], node.scale[2]),
+            .matrix = if (node.matrix) |matrix| zalg.Mat4.fromSlice(&matrix) else null,
+        };
+    }
+
+    for (nodes, 0..) |node, parent| {
+        for (node.children) |child| {
+            if (child >= nodes.len) return error.InvalidIndex;
+            if (nodes[child].parent != null) return error.MultipleParents;
+            nodes[child].parent = parent;
+        }
+    }
+
+    return nodes;
+}
+
+fn orderNodes(allocator: Allocator, nodes: []const ModelNode) ![]usize {
+    var order: ArrayList(usize) = .empty;
+
+    for (nodes, 0..) |node, index| {
+        if (node.parent == null) try order.append(allocator, index);
+    }
+
+    var next: usize = 0;
+    while (next < order.items.len) : (next += 1) {
+        try order.appendSlice(allocator, nodes[order.items[next]].children);
+    }
+
+    if (order.items.len != nodes.len) return error.NodeCycle;
+
+    return order.items;
+}
+
+fn readSkins(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+) ![]ModelSkin {
+    const skins = try allocator.alloc(ModelSkin, document.skins.len);
+
+    for (document.skins, skins) |skin, *result| {
+        for (skin.joints) |joint| {
+            if (joint >= document.nodes.len) return error.InvalidIndex;
+        }
+
+        const matrices = try allocator.alloc(zalg.Mat4, skin.joints.len);
+
+        if (skin.inverseBindMatrices) |index| {
+            const values = try readAttribute(f32, allocator, document, buffers, index, .MAT4, skin.joints.len);
+            for (matrices, 0..) |*matrix, i| {
+                matrix.* = zalg.Mat4.fromSlice(values[i * 16 ..][0..16]);
+            }
+        } else {
+            @memset(matrices, zalg.Mat4.identity());
+        }
+
+        result.* = .{
+            .name = try allocator.dupe(u8, skin.name orelse ""),
+            .joints = try allocator.dupe(usize, skin.joints),
+            .inverse_bind_matrices = matrices,
+        };
+    }
+
+    return skins;
+}
+
+fn readClips(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+) ![]Clip {
+    const clips = try allocator.alloc(Clip, document.animations.len);
+
+    for (document.animations, clips) |animation, *clip| {
+        var tracks: ArrayList(Track) = .empty;
+        var duration: f32 = 0;
+
+        for (animation.channels) |channel| {
+            if (channel.target.path == .weights) continue;
+            const node = channel.target.node orelse continue;
+
+            if (node >= document.nodes.len) return error.InvalidIndex;
+            if (channel.sampler >= animation.samplers.len) return error.InvalidIndex;
+
+            const track = try readTrack(
+                allocator,
+                document,
+                buffers,
+                node,
+                channel.target.path,
+                animation.samplers[channel.sampler],
+            );
+            duration = @max(duration, track.times[track.times.len - 1]);
+            try tracks.append(allocator, track);
+        }
+
+        clip.* = .{
+            .name = try allocator.dupe(u8, animation.name orelse ""),
+            .duration = duration,
+            .tracks = tracks.items,
+        };
+    }
+
+    return clips;
+}
+
+fn readTrack(
+    allocator: Allocator,
+    document: *const Document,
+    buffers: []const []const u8,
+    node: usize,
+    path: Path,
+    sampler: Sampler,
+) !Track {
+    const times = try readAccessor(f32, allocator, document, buffers, sampler.input);
+    if (document.accessors[sampler.input].type != .SCALAR) return error.UnexpectedAccessorType;
+    if (times.len == 0) return error.EmptyTrack;
+
+    const key_count = if (sampler.interpolation == .CUBICSPLINE) times.len * 3 else times.len;
+    const value_type: AccessorType = if (path == .rotation) .VEC4 else .VEC3;
+
+    return .{
+        .node = node,
+        .path = path,
+        .interpolation = sampler.interpolation,
+        .times = times,
+        .values = try readAttribute(f32, allocator, document, buffers, sampler.output, value_type, key_count),
+    };
 }
 
 fn readComponent(comptime T: type, bytes: []const u8, accessor: Accessor) !T {
