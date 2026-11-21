@@ -1,7 +1,9 @@
 const std = @import("std");
 const zalg = @import("zalgebra");
+const assets = @import("../assets.zig");
 const MeshData = @import("MeshData.zig");
 
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -207,6 +209,42 @@ pub const Document = struct {
     bufferViews: []const BufferView = &.{},
     buffers: []const Buffer = &.{},
 };
+
+pub fn load(io: Io, allocator: Allocator, path: []const u8) !Model {
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
+    const temp = scratch.allocator();
+
+    const folder = std.fs.path.dirname(path) orelse "";
+
+    const source = try readAsset(io, temp, path);
+    const document = try parseDocument(temp, source);
+
+    const buffers = try temp.alloc([]const u8, document.buffers.len);
+    for (document.buffers, buffers) |buffer, *bytes| {
+        const uri = buffer.uri orelse return error.UnsupportedBuffer;
+        if (std.mem.startsWith(u8, uri, "data:")) return error.UnsupportedBuffer;
+
+        const buffer_path = try std.fs.path.join(temp, &.{ folder, uri });
+        bytes.* = try readAsset(io, temp, buffer_path);
+        if (bytes.len < buffer.byteLength) return error.BufferTooShort;
+    }
+
+    return buildModel(allocator, &document, buffers);
+}
+
+fn readAsset(io: Io, allocator: Allocator, path: []const u8) ![]u8 {
+    const full_path = try std.fs.path.join(allocator, &.{ assets.root, path });
+    defer allocator.free(full_path);
+
+    return Io.Dir.readFileAlloc(
+        Io.Dir.cwd(),
+        io,
+        full_path,
+        allocator,
+        .unlimited,
+    );
+}
 
 pub fn parseDocument(allocator: Allocator, source: []const u8) !Document {
     return std.json.parseFromSliceLeaky(Document, allocator, source, .{

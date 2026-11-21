@@ -394,3 +394,13 @@ test "bad animations" {
         \\"animations":[{"channels":[{"sampler":5,"target":{"node":0,"path":"scale"}}],"samplers":[]}]
     ));
 }
+
+test "load bot" {
+    var model = try gltf_loader.load(testing.io, testing.allocator, "models/bot/bot.gltf");
+    defer model.deinit();
+
+    try testing.expectEqual(2, model.parts.len);
+    try testing.expectEqual(27, model.nodes.len);
+    try testing.expectEqual(25, model.skins[0].joints.len);
+    try testing.expectEqual(75, model.clips[0].tracks.len);
+}
