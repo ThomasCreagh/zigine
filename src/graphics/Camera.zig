@@ -13,9 +13,9 @@ const glfw = c.glfw;
 
 const Camera = @This();
 
-const max_pitch = std.math.pi / 2.0 - 0.01;
-const mouse_sensitivity: f32 = 0.001;
-const position_speed: f32 = 5;
+max_pitch: f32 = std.math.pi / 2.0 - 0.01,
+mouse_sensitivity: f32 = 0.001,
+position_speed: f32 = 5,
 
 window: *Window,
 input: ?*Input,
@@ -45,15 +45,15 @@ pub fn update(self: *Camera, dt: f32) void {
 
     // mouse
     self.transform.rotation.data[0] -=
-        @as(f32, @floatCast(input.mouse_dy)) * mouse_sensitivity;
+        @as(f32, @floatCast(input.mouse_dy)) * self.mouse_sensitivity;
 
     self.transform.rotation.data[1] +=
-        @as(f32, @floatCast(input.mouse_dx)) * mouse_sensitivity;
+        @as(f32, @floatCast(input.mouse_dx)) * self.mouse_sensitivity;
 
     self.transform.rotation.data[0] = clamp(
         self.transform.rotation.data[0],
-        -max_pitch,
-        max_pitch,
+        -self.max_pitch,
+        self.max_pitch,
     );
 
     // keys
@@ -73,7 +73,7 @@ pub fn update(self: *Camera, dt: f32) void {
         @sin(yaw),
     );
 
-    const amount = position_speed * dt;
+    const amount = self.position_speed * dt;
 
     if (keys_down[glfw.GLFW_KEY_W]) {
         self.transform.position =

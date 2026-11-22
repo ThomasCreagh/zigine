@@ -1,4 +1,5 @@
 const std = @import("std");
+const zalg = @import("zalgebra");
 const c = @import("../c.zig");
 const Scene = @import("Scene.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
@@ -10,7 +11,6 @@ const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
 
 const Io = std.Io;
-const gl = c.glad;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -20,12 +20,14 @@ const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
     .enter = enter,
+    .getBackground = getBackground,
     .deinit = deinit,
 };
 
 camera: Camera,
 scene_objects: ArrayList(SceneObjects) = .empty,
 shaders: ShaderManager = undefined,
+background: zalg.Vec3 = zalg.Vec3.new(0, 0, 0),
 
 pub fn init(
     io: Io,
@@ -50,8 +52,6 @@ pub fn init(
     const axis = try Axis.init(allocator, &self.shaders.axis);
     errdefer axis.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, axis.sceneObject());
-
-    gl.glClearColor(0.0, 0.0, 0.0, 0.0); // Background
 
     return self;
 }
@@ -91,6 +91,11 @@ pub fn scene(self: *BasicAxis) Scene {
         .ptr = self,
         .vtable = &vtable,
     };
+}
+
+pub fn getBackground(ptr: *anyopaque) zalg.Vec3 {
+    const self: *BasicAxis = @ptrCast(@alignCast(ptr));
+    return self.background;
 }
 
 pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {

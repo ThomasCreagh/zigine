@@ -19,7 +19,6 @@ const Light = @import("../graphics/light.zig").Light;
 const obj_loader = @import("../graphics/obj_loader.zig");
 
 const Io = std.Io;
-const gl = c.glad;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -29,6 +28,7 @@ const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
     .enter = enter,
+    .getBackground = getBackground,
     .deinit = deinit,
 };
 
@@ -41,6 +41,7 @@ shaders: ShaderManager = undefined,
 textures: TextureManager = undefined,
 light: Light = undefined,
 shadow_map: FrameBuffer = undefined,
+background: zalg.Vec3 = zalg.Vec3.new(0.2, 0.2, 0.25),
 
 pub fn init(
     io: Io,
@@ -102,8 +103,6 @@ pub fn init(
     errdefer skybox.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, skybox.sceneObject());
 
-    gl.glClearColor(0.2, 0.2, 0.25, 0.0); // Background
-
     return self;
 }
 
@@ -152,6 +151,11 @@ pub fn scene(self: *FishTower) Scene {
         .ptr = self,
         .vtable = &vtable,
     };
+}
+
+pub fn getBackground(ptr: *anyopaque) zalg.Vec3 {
+    const self: *FishTower = @ptrCast(@alignCast(ptr));
+    return self.background;
 }
 
 pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {

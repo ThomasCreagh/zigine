@@ -17,8 +17,6 @@ const Axis = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
-    .renderShadow = renderShadow,
-    .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
 };
@@ -118,10 +116,6 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     );
     gl.glDrawArrays(gl.GL_LINES, 0, 6);
 }
-
-pub fn renderShadow(_: *anyopaque, _: RenderContext) void {}
-
-pub fn update(_: *anyopaque, _: f32) void {}
 
 pub fn getTransform(ptr: *anyopaque) *Transform {
     const self: *Axis = @ptrCast(@alignCast(ptr));

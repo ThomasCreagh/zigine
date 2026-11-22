@@ -80,8 +80,9 @@ pub fn swapBuffers(self: *Window) void {
     glfw.glfwSwapBuffers(self.window);
 }
 
-pub fn clear(self: *Window) void {
+pub fn clear(self: *Window, colour: zalg.Vec3) void {
     _ = self;
+    gl.glClearColor(colour.x(), colour.y(), colour.z(), 1.0); // Background
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT);
 }
 

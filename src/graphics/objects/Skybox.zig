@@ -19,8 +19,6 @@ const Skybox = @This();
 
 const vtable: SceneObject.VTable = .{
     .render = render,
-    .renderShadow = renderShadow,
-    .update = update,
     .getTransform = getTransform,
     .deinit = deinit,
 };
@@ -251,10 +249,6 @@ fn insetUVs(uvs: *[48]gl.GLfloat, tex_w: f32, tex_h: f32) void {
         }
     }
 }
-
-pub fn renderShadow(_: *anyopaque, _: RenderContext) void {}
-
-pub fn update(_: *anyopaque, _: f32) void {}
 
 pub fn getTransform(ptr: *anyopaque) *Transform {
     const self: *Skybox = @ptrCast(@alignCast(ptr));

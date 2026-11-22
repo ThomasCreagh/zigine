@@ -16,7 +16,6 @@ const Mesh = @import("../graphics/objects/Mesh.zig");
 const Light = @import("../graphics/light.zig").Light;
 
 const Io = std.Io;
-const gl = c.glad;
 const glfw = c.glfw;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -27,6 +26,7 @@ const vtable: Scene.VTable = .{
     .render = render,
     .update = update,
     .enter = enter,
+    .getBackground = getBackground,
     .deinit = deinit,
 };
 
@@ -228,6 +228,7 @@ light: Light = undefined,
 shadow_map: FrameBuffer = undefined,
 input: *Input,
 light_offset: zalg.Vec3 = zalg.Vec3.new(0, 0, 0),
+background: zalg.Vec3 = zalg.Vec3.new(0.2, 0.2, 0.25),
 
 pub fn init(
     io: Io,
@@ -315,8 +316,6 @@ pub fn init(
     errdefer cornell_small_block.sceneObject().deinit(allocator);
     try self.scene_objects.append(allocator, cornell_small_block.sceneObject());
 
-    gl.glClearColor(0.2, 0.2, 0.25, 0.0); // Background
-
     return self;
 }
 
@@ -400,6 +399,11 @@ pub fn scene(self: *CornellBox) Scene {
         .ptr = self,
         .vtable = &vtable,
     };
+}
+
+pub fn getBackground(ptr: *anyopaque) zalg.Vec3 {
+    const self: *CornellBox = @ptrCast(@alignCast(ptr));
+    return self.background;
 }
 
 pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {

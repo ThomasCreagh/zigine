@@ -8,6 +8,7 @@ const Scene = @import("scene/Scene.zig");
 const BasicAxis = @import("scene/BasicAxis.zig");
 const CornellBox = @import("scene/CornellBox.zig");
 const FishTower = @import("scene/FishTower.zig");
+const FirstAnimation = @import("scene/FirstAnimation.zig");
 
 const Io = std.Io;
 const Timestamp = Io.Timestamp;
@@ -34,6 +35,10 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     var scenes: ArrayList(Scene) = .empty;
     defer scenes.deinit(allocator);
 
+    var firstanimation_scene: *FirstAnimation = try .init(io, allocator, &window, &input);
+    defer firstanimation_scene.scene().deinit(allocator);
+    try scenes.append(allocator, firstanimation_scene.scene());
+
     var fishtower_scene: *FishTower = try .init(io, allocator, &window, &input);
     defer fishtower_scene.scene().deinit(allocator);
     try scenes.append(allocator, fishtower_scene.scene());
@@ -46,7 +51,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
     defer basic_scene.scene().deinit(allocator);
     try scenes.append(allocator, basic_scene.scene());
 
-    var scene = fishtower_scene.scene();
+    var scene = firstanimation_scene.scene();
     scene.enter();
 
     var last = Timestamp.now(io, .awake);
@@ -54,7 +59,7 @@ pub fn run(io: Io, allocator: std.mem.Allocator) !void {
         const dt: f32 = getDt(io, &last);
         calcFps(dt);
 
-        window.clear();
+        window.clear(scene.getBackground());
         window.poll();
 
         updateSelectedScene(&input, &scene, scenes);
@@ -76,13 +81,14 @@ fn updateSelectedScene(
     if (input.wasPressed(glfw.GLFW_KEY_1)) {
         scene.* = scenes.items[0];
         scene.enter();
-    }
-    if (input.wasPressed(glfw.GLFW_KEY_2)) {
+    } else if (input.wasPressed(glfw.GLFW_KEY_2)) {
         scene.* = scenes.items[1];
         scene.enter();
-    }
-    if (input.wasPressed(glfw.GLFW_KEY_3)) {
+    } else if (input.wasPressed(glfw.GLFW_KEY_3)) {
         scene.* = scenes.items[2];
+        scene.enter();
+    } else if (input.wasPressed(glfw.GLFW_KEY_4)) {
+        scene.* = scenes.items[3];
         scene.enter();
     }
 }

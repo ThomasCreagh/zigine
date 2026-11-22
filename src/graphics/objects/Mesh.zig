@@ -10,6 +10,7 @@ const VertexBuffer = @import("../opengl/buffer.zig").VertexBuffer;
 const IndexBuffer = @import("../opengl/buffer.zig").IndexBuffer;
 const SceneObject = @import("../SceneObject.zig");
 const RenderContext = @import("../RenderContext.zig");
+const Skeleton = @import("../../animations/Skeleton.zig");
 
 const gl = c.glad;
 const Io = std.Io;
@@ -22,14 +23,15 @@ pub const MeshData = @import("../MeshData.zig");
 const vtable: SceneObject.VTable = .{
     .render = render,
     .renderShadow = renderShadow,
-    .update = update,
     .getTransform = getTransform,
+    .getSkeleton = getSkeleton,
     .deinit = deinit,
 };
 
 transform: Transform = .{},
 enable: bool = true,
 material: Material = .{},
+skeleton: ?*const Skeleton = null,
 
 vao: VertexArray,
 position_vbo: VertexBuffer,
@@ -239,11 +241,14 @@ pub fn renderShadow(ptr: *anyopaque, ctx: RenderContext) void {
     self.draw();
 }
 
-pub fn update(_: *anyopaque, _: f32) void {}
-
 pub fn getTransform(ptr: *anyopaque) *Transform {
     const self: *Mesh = @ptrCast(@alignCast(ptr));
     return &self.transform;
+}
+
+pub fn getSkeleton(ptr: *anyopaque) ?*const Skeleton {
+    const self: *Mesh = @ptrCast(@alignCast(ptr));
+    return self.skeleton;
 }
 
 pub fn sceneObject(self: *Mesh) SceneObject {
