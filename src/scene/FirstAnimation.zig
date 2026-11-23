@@ -1,28 +1,29 @@
 const std = @import("std");
+const Io = std.Io;
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+
 const zalg = @import("zalgebra");
+
 const c = @import("../c.zig");
-const Scene = @import("Scene.zig");
+const gl = c.glad;
+const glfw = c.glfw;
+const Camera = @import("../graphics/Camera.zig");
+const Light = @import("../graphics/light.zig").Light;
+const ModelManager = @import("../graphics/ModelManager.zig");
+const AnimatedModel = @import("../graphics/objects/AnimatedModel.zig");
+const Mesh = @import("../graphics/objects/Mesh.zig");
+const Skybox = @import("../graphics/objects/Skybox.zig");
+const FrameBuffer = @import("../graphics/opengl/FrameBuffer.zig");
+const Texture = @import("../graphics/opengl/Texture.zig");
+const RenderContext = @import("../graphics/RenderContext.zig");
 const SceneObjects = @import("../graphics/SceneObject.zig");
 const ShaderManager = @import("../graphics/ShaderManager.zig");
 const TextureManager = @import("../graphics/TextureManager.zig");
-const ModelManager = @import("../graphics/ModelManager.zig");
-const Camera = @import("../graphics/Camera.zig");
-const RenderContext = @import("../graphics/RenderContext.zig");
 const Transform = @import("../graphics/Transform.zig");
-const FrameBuffer = @import("../graphics/opengl/FrameBuffer.zig");
-const Texture = @import("../graphics/opengl/Texture.zig");
-const Window = @import("../Window.zig");
 const Input = @import("../Input.zig");
-
-const Mesh = @import("../graphics/objects/Mesh.zig");
-const AnimatedModel = @import("../graphics/objects/AnimatedModel.zig");
-const Skybox = @import("../graphics/objects/Skybox.zig");
-const Light = @import("../graphics/light.zig").Light;
-
-const Io = std.Io;
-const gl = c.glad;
-const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const Window = @import("../Window.zig");
+const Scene = @import("Scene.zig");
 
 const FirstAnimation = @This();
 
@@ -34,10 +35,23 @@ const vtable: Scene.VTable = .{
     .deinit = deinit,
 };
 
-const light_position = zalg.Vec3.new(-275, 500, 800);
-const light_intensity = zalg.Vec3.new(5e6, 5e6, 5e6);
+const light_position = zalg.Vec3.new(-254, 600, 0); // (-275, 500, 800);
+const light_intensity = zalg.Vec3.new(1e6, 1e6, 1e6); // (5e6, 5e6, 5e6);
+
+const floor_positions: [12]f32 = .{
+    -1050.0, -10.6, 800.0,
+    550.0,   -10.6, 800.0,
+    550.0,   -10.6, -800.0,
+    -1050.0, -10.6, -800.0,
+};
+
+const floor_indices: [6]u32 = .{
+    0, 1, 2,
+    0, 2, 3,
+};
 
 camera: Camera,
+input: *Input,
 scene_objects: ArrayList(SceneObjects) = .empty,
 shaders: ShaderManager = undefined,
 textures: TextureManager = undefined,
@@ -45,6 +59,7 @@ models: ModelManager = undefined,
 light: Light = undefined,
 shadow_map: FrameBuffer = undefined,
 background: zalg.Vec3 = zalg.Vec3.new(0, 0, 0),
+bot: *AnimatedModel = undefined,
 
 pub fn init(
     io: Io,
@@ -58,16 +73,17 @@ pub fn init(
     self.* = .{
         .camera = .{
             .window = window,
-            .input = input,
+            .input = null,
         },
+        .input = input,
     };
 
     try self.camera.init();
 
-    self.camera.transform.position = zalg.Vec3.new(0, 100, 800);
-    self.camera.transform.rotation = zalg.Vec3.new(0, 0, 0);
+    self.camera.transform.position = zalg.Vec3.new(-254, 350, 650);
+    self.camera.transform.rotation = zalg.Vec3.new(-0.3, 0, 0);
     self.camera.near_plane = 100;
-    self.camera.far_plane = 1500;
+    self.camera.far_plane = 2500;
     self.camera.position_speed = 500;
 
     self.shaders = try ShaderManager.init(io, allocator);
@@ -93,8 +109,32 @@ pub fn init(
 
     errdefer self.deinitObjects(allocator);
 
-    const bot = try self.addAnimatedModel(allocator, "models/bot/bot.gltf", .{});
-    bot.play(0);
+    const floor = try Mesh.init(
+        allocator,
+        &self.shaders.lit,
+        &self.shaders.depth,
+        .{
+            .positions = &floor_positions,
+            .indices = &floor_indices,
+        },
+    );
+    errdefer floor.sceneObject().deinit(allocator);
+    try self.scene_objects.append(allocator, floor.sceneObject());
+
+    self.bot = try self.addAnimatedModel(allocator, "models/bot/bot.gltf", .{});
+    self.bot.play(0);
+
+    const breakdance_dancer = try self.addAnimatedModel(allocator, "models/breakdance/breakdance.glb", .{
+        .position = zalg.Vec3.new(-400, -10.6, -100),
+        .scale = zalg.Vec3.new(100, 100, 100),
+    });
+    breakdance_dancer.play(0);
+
+    const flair_dancer = try self.addAnimatedModel(allocator, "models/flair/flair.glb", .{
+        .position = zalg.Vec3.new(-200, -10.6, -100),
+        .scale = zalg.Vec3.new(100, 100, 100),
+    });
+    flair_dancer.play(0);
 
     return self;
 }
@@ -128,6 +168,8 @@ pub fn render(ptr: *anyopaque) void {
 pub fn update(ptr: *anyopaque, dt: f32) void {
     const self: *FirstAnimation = @ptrCast(@alignCast(ptr));
 
+    self.updateAnimation();
+
     self.camera.update(dt);
     for (self.scene_objects.items) |item| {
         item.update(dt);
@@ -136,7 +178,7 @@ pub fn update(ptr: *anyopaque, dt: f32) void {
 
 pub fn enter(ptr: *anyopaque) void {
     const self: *FirstAnimation = @ptrCast(@alignCast(ptr));
-    if (self.camera.input) |input| input.captureCursor(true);
+    self.input.captureCursor(self.camera.input != null);
 }
 
 pub fn scene(self: *FirstAnimation) Scene {
@@ -160,6 +202,14 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.shadow_map.deinit();
 
     allocator.destroy(self);
+}
+
+fn updateAnimation(self: *FirstAnimation) void {
+    if (self.input.wasPressed(glfw.GLFW_KEY_Z)) {
+        self.bot.play(0);
+    } else if (self.input.wasPressed(glfw.GLFW_KEY_X)) {
+        self.bot.play(1);
+    }
 }
 
 fn addAnimatedModel(

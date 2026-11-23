@@ -1,7 +1,7 @@
 #version 330 core
 
 // same as max_joints in Mesh.zig
-const int MAX_JOINTS = 64;
+const int MAX_JOINTS = 128;
 
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 4) in uvec4 vertexJoints;

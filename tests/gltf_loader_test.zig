@@ -404,3 +404,66 @@ test "load bot" {
     try testing.expectEqual(25, model.skins[0].joints.len);
     try testing.expectEqual(75, model.clips[0].tracks.len);
 }
+
+fn appendU32(list: *std.ArrayList(u8), allocator: std.mem.Allocator, value: u32) !void {
+    try list.appendSlice(allocator, &std.mem.toBytes(std.mem.nativeToLittle(u32, value)));
+}
+
+fn glb(arena: *std.heap.ArenaAllocator, version: u32, json: []const u8, bin: ?[]const u8) ![]u8 {
+    const allocator = arena.allocator();
+    var list: std.ArrayList(u8) = .empty;
+
+    const bin_size: usize = if (bin) |data| 8 + data.len else 0;
+    try list.appendSlice(allocator, "glTF");
+    try appendU32(&list, allocator, version);
+    try appendU32(&list, allocator, @intCast(12 + 8 + json.len + bin_size));
+
+    try appendU32(&list, allocator, @intCast(json.len));
+    try appendU32(&list, allocator, 0x4E4F534A);
+    try list.appendSlice(allocator, json);
+
+    if (bin) |data| {
+        try appendU32(&list, allocator, @intCast(data.len));
+        try appendU32(&list, allocator, 0x004E4942);
+        try list.appendSlice(allocator, data);
+    }
+
+    return list.items;
+}
+
+test "glb chunks" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const json =
+        \\{"buffers":[{"byteLength":4}]}
+    ;
+    const bin = [_]u8{ 1, 2, 3, 4 };
+
+    const file = try gltf_loader.parseGlb(try glb(&arena, 2, json, &bin));
+    try testing.expectEqualStrings(json, file.json);
+    try testing.expectEqualSlices(u8, &bin, file.bin.?);
+
+    const doc = try parse(&arena, file.json);
+    try testing.expectEqual(null, doc.buffers[0].uri);
+
+    const no_bin = try gltf_loader.parseGlb(try glb(&arena, 2, json, null));
+    try testing.expectEqual(null, no_bin.bin);
+}
+
+test "bad glb" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const bin = [_]u8{ 1, 2, 3, 4 };
+    const good = try glb(&arena, 2, "{}", &bin);
+
+    try testing.expectError(error.UnsupportedGlbVersion, gltf_loader.parseGlb(try glb(&arena, 1, "{}", null)));
+    try testing.expectError(error.InvalidGlb, gltf_loader.parseGlb(good[0 .. good.len - 1]));
+    try testing.expectError(error.InvalidGlb, gltf_loader.parseGlb("glTF"));
+
+    // bin chunk claims more bytes than the file has
+    const overflow = try arena.allocator().dupe(u8, good);
+    std.mem.writeInt(u32, overflow[22..26], 99, .little);
+    try testing.expectError(error.InvalidGlb, gltf_loader.parseGlb(overflow));
+}

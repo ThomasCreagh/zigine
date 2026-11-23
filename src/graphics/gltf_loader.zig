@@ -218,15 +218,23 @@ pub fn load(io: Io, allocator: Allocator, path: []const u8) !Model {
     const folder = std.fs.path.dirname(path) orelse "";
 
     const source = try readAsset(io, temp, path);
-    const document = try parseDocument(temp, source);
+    const glb: ?Glb = if (std.mem.startsWith(u8, source, "glTF")) try parseGlb(source) else null;
+    const document = try parseDocument(temp, if (glb) |file| file.json else source);
 
     const buffers = try temp.alloc([]const u8, document.buffers.len);
-    for (document.buffers, buffers) |buffer, *bytes| {
-        const uri = buffer.uri orelse return error.UnsupportedBuffer;
-        if (std.mem.startsWith(u8, uri, "data:")) return error.UnsupportedBuffer;
+    for (document.buffers, buffers, 0..) |buffer, *bytes, index| {
+        if (buffer.uri) |uri| {
+            if (std.mem.startsWith(u8, uri, "data:")) return error.UnsupportedBuffer;
 
-        const buffer_path = try std.fs.path.join(temp, &.{ folder, uri });
-        bytes.* = try readAsset(io, temp, buffer_path);
+            const buffer_path = try std.fs.path.join(temp, &.{ folder, uri });
+            bytes.* = try readAsset(io, temp, buffer_path);
+        } else {
+            // in a glb only the first buffer can have no uri, it is the bin chunk
+            const bin = if (glb) |file| file.bin else null;
+            if (index != 0) return error.UnsupportedBuffer;
+            bytes.* = bin orelse return error.UnsupportedBuffer;
+        }
+
         if (bytes.len < buffer.byteLength) return error.BufferTooShort;
     }
 
@@ -244,6 +252,61 @@ fn readAsset(io: Io, allocator: Allocator, path: []const u8) ![]u8 {
         allocator,
         .unlimited,
     );
+}
+
+pub const Glb = struct {
+    json: []const u8,
+    bin: ?[]const u8,
+};
+
+const Chunk = struct {
+    kind: u32,
+    data: []const u8,
+    end: usize,
+};
+
+const glb_magic: u32 = 0x46546C67; // "glTF"
+const json_chunk: u32 = 0x4E4F534A; // "JSON"
+const bin_chunk: u32 = 0x004E4942; // "BIN\0"
+
+// 12 byte header then a json chunk and an optional bin chunk
+pub fn parseGlb(bytes: []const u8) !Glb {
+    if (bytes.len < 12) return error.InvalidGlb;
+    if (readU32(bytes[0..]) != glb_magic) return error.InvalidGlb;
+    if (readU32(bytes[4..]) != 2) return error.UnsupportedGlbVersion;
+
+    const length = readU32(bytes[8..]);
+    if (length < 12 or length > bytes.len) return error.InvalidGlb;
+    const file = bytes[0..length];
+
+    const json = try readChunk(file, 12);
+    if (json.kind != json_chunk) return error.InvalidGlb;
+
+    var bin: ?[]const u8 = null;
+    if (json.end < file.len) {
+        const chunk = try readChunk(file, json.end);
+        if (chunk.kind == bin_chunk) bin = chunk.data;
+    }
+
+    return .{ .json = json.data, .bin = bin };
+}
+
+fn readChunk(bytes: []const u8, offset: usize) !Chunk {
+    if (bytes.len - offset < 8) return error.InvalidGlb;
+
+    const length = readU32(bytes[offset..]);
+    const start = offset + 8;
+    if (length > bytes.len - start) return error.InvalidGlb;
+
+    return .{
+        .kind = readU32(bytes[offset + 4 ..]),
+        .data = bytes[start..][0..length],
+        .end = start + length,
+    };
+}
+
+fn readU32(bytes: []const u8) u32 {
+    return std.mem.readInt(u32, bytes[0..4], .little);
 }
 
 pub fn parseDocument(allocator: Allocator, source: []const u8) !Document {

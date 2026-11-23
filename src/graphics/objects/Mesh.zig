@@ -21,7 +21,7 @@ const Mesh = @This();
 pub const MeshData = @import("../MeshData.zig");
 
 // same as MAX_JOINTS in shaders
-pub const max_joints = 64;
+pub const max_joints = 128;
 
 const vtable: SceneObject.VTable = .{
     .render = render,
