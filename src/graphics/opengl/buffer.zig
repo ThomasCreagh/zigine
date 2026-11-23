@@ -13,13 +13,17 @@ pub const VertexBuffer = struct {
     const Self = @This();
 
     pub fn init(vertices: []const f32) Self {
+        return initBytes(std.mem.sliceAsBytes(vertices));
+    }
+
+    pub fn initBytes(bytes: []const u8) Self {
         var vbo: Self = .{ .id = 0 };
         gl.glGenBuffers(1, &vbo.id);
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo.id);
         gl.glBufferData(
             gl.GL_ARRAY_BUFFER,
-            @intCast(vertices.len * @sizeOf(f32)),
-            vertices.ptr,
+            @intCast(bytes.len),
+            bytes.ptr,
             gl.GL_STATIC_DRAW,
         );
         return vbo;

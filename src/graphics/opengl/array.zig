@@ -50,4 +50,21 @@ pub const VertexArray = struct {
             null,
         );
     }
+
+    pub fn enableIntAttrib(
+        self: Self,
+        index: u32,
+        size: i32,
+        gl_type: gl.GLenum,
+    ) void {
+        self.bind();
+        gl.glEnableVertexAttribArray(index);
+        gl.glVertexAttribIPointer(
+            index,
+            size,
+            gl_type,
+            0,
+            null,
+        );
+    }
 };

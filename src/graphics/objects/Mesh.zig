@@ -20,6 +20,9 @@ const Mesh = @This();
 
 pub const MeshData = @import("../MeshData.zig");
 
+// same as MAX_JOINTS in shaders
+pub const max_joints = 64;
+
 const vtable: SceneObject.VTable = .{
     .render = render,
     .renderShadow = renderShadow,
@@ -32,12 +35,15 @@ transform: Transform = .{},
 enable: bool = true,
 material: Material = .{},
 skeleton: ?*const Skeleton = null,
+skin: ?usize = null,
 
 vao: VertexArray,
 position_vbo: VertexBuffer,
 colour_vbo: ?VertexBuffer,
 normal_vbo: VertexBuffer,
 uv_vbo: ?VertexBuffer,
+joint_vbo: ?VertexBuffer,
+weight_vbo: ?VertexBuffer,
 index_vbo: IndexBuffer,
 
 index_buffer_len: usize,
@@ -54,6 +60,10 @@ diffuse_texture_id: gl.GLint = 0,
 has_diffuse_texture_id: gl.GLint = 0,
 has_light_id: gl.GLint = 0,
 has_shadow_id: gl.GLint = 0,
+joint_matrices_id: gl.GLint = 0,
+has_skin_id: gl.GLint = 0,
+depth_joint_matrices_id: gl.GLint = 0,
+depth_has_skin_id: gl.GLint = 0,
 program: *Shader,
 depth_program: *Shader,
 
@@ -97,6 +107,17 @@ pub fn init(
     const uv_vbo = initOptionalBuffer(vao, data.uvs, 3, 2);
     errdefer if (uv_vbo) |vbo| vbo.deinit();
 
+    const joint_vbo: ?VertexBuffer = if (data.joints) |joints| blk: {
+        const vbo = VertexBuffer.initBytes(std.mem.sliceAsBytes(joints));
+        vbo.bind();
+        vao.enableIntAttrib(4, 4, gl.GL_UNSIGNED_SHORT);
+        break :blk vbo;
+    } else null;
+    errdefer if (joint_vbo) |vbo| vbo.deinit();
+
+    const weight_vbo = initOptionalBuffer(vao, data.weights, 5, 4);
+    errdefer if (weight_vbo) |vbo| vbo.deinit();
+
     const index_vbo = IndexBuffer.init(data.indices);
     errdefer index_vbo.deinit();
 
@@ -114,6 +135,10 @@ pub fn init(
     const has_diffuse_texture_id = gl.glGetUniformLocation(program.id, "hasDiffuseTexture");
     const has_light_id = gl.glGetUniformLocation(program.id, "hasLight");
     const has_shadow_id = gl.glGetUniformLocation(program.id, "hasShadow");
+    const joint_matrices_id = gl.glGetUniformLocation(program.id, "jointMatrices");
+    const has_skin_id = gl.glGetUniformLocation(program.id, "hasSkin");
+    const depth_joint_matrices_id = gl.glGetUniformLocation(depth_program.id, "jointMatrices");
+    const depth_has_skin_id = gl.glGetUniformLocation(depth_program.id, "hasSkin");
 
     self.* = .{
         .vao = vao,
@@ -121,6 +146,8 @@ pub fn init(
         .colour_vbo = colour_vbo,
         .normal_vbo = normal_vbo,
         .uv_vbo = uv_vbo,
+        .joint_vbo = joint_vbo,
+        .weight_vbo = weight_vbo,
         .index_vbo = index_vbo,
         .index_buffer_len = data.indices.len,
         .program = program,
@@ -137,6 +164,10 @@ pub fn init(
         .has_diffuse_texture_id = has_diffuse_texture_id,
         .has_light_id = has_light_id,
         .has_shadow_id = has_shadow_id,
+        .joint_matrices_id = joint_matrices_id,
+        .has_skin_id = has_skin_id,
+        .depth_joint_matrices_id = depth_joint_matrices_id,
+        .depth_has_skin_id = depth_has_skin_id,
     };
 
     return self;
@@ -172,6 +203,7 @@ pub fn render(ptr: *anyopaque, ctx: RenderContext) void {
     );
 
     self.uploadLighting(ctx.lighting);
+    self.uploadSkin(self.joint_matrices_id, self.has_skin_id);
 
     gl.glUniform3fv(self.diffuse_colour_id, 1, @ptrCast(&self.material.diffuse_colour.data));
     gl.glUniform1i(self.diffuse_texture_id, RenderContext.diffuse_unit);
@@ -237,8 +269,24 @@ pub fn renderShadow(ptr: *anyopaque, ctx: RenderContext) void {
         gl.GL_FALSE,
         @ptrCast(&mvp.data[0][0]),
     );
+    self.uploadSkin(self.depth_joint_matrices_id, self.depth_has_skin_id);
 
     self.draw();
+}
+
+fn uploadSkin(self: *const Mesh, joint_matrices_id: gl.GLint, has_skin_id: gl.GLint) void {
+    const skeleton = self.skeleton orelse return gl.glUniform1i(has_skin_id, 0);
+    const skin = self.skin orelse return gl.glUniform1i(has_skin_id, 0);
+
+    const matrices = skeleton.joint_matrices[skin];
+
+    gl.glUniform1i(has_skin_id, 1);
+    gl.glUniformMatrix4fv(
+        joint_matrices_id,
+        @intCast(matrices.len),
+        gl.GL_FALSE,
+        @ptrCast(&matrices[0].data[0][0]),
+    );
 }
 
 pub fn getTransform(ptr: *anyopaque) *Transform {
@@ -265,6 +313,8 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     if (self.colour_vbo) |vbo| vbo.deinit();
     self.normal_vbo.deinit();
     if (self.uv_vbo) |vbo| vbo.deinit();
+    if (self.joint_vbo) |vbo| vbo.deinit();
+    if (self.weight_vbo) |vbo| vbo.deinit();
     self.index_vbo.deinit();
     allocator.destroy(self);
 }

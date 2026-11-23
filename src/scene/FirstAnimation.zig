@@ -83,8 +83,8 @@ pub fn init(
         .pointlight = .{
             .position = light_position,
             .intensity = light_intensity,
-            .near_plane = 2.0,
-            .far_plane = 20.0,
+            .near_plane = 300.0,
+            .far_plane = 800.0,
         },
     };
 
@@ -93,7 +93,8 @@ pub fn init(
 
     errdefer self.deinitObjects(allocator);
 
-    try self.addAnimatedModel(allocator, "models/bot/bot.gltf", .{});
+    const bot = try self.addAnimatedModel(allocator, "models/bot/bot.gltf", .{});
+    bot.play(0);
 
     return self;
 }
@@ -166,7 +167,7 @@ fn addAnimatedModel(
     allocator: Allocator,
     path: []const u8,
     transform: Transform,
-) !void {
+) !*AnimatedModel {
     const model = try self.models.get(path);
 
     const animated_model = try AnimatedModel.init(
@@ -180,6 +181,8 @@ fn addAnimatedModel(
     animated_model.transform = transform;
 
     try self.scene_objects.append(allocator, animated_model.sceneObject());
+
+    return animated_model;
 }
 
 fn deinitObjects(self: *FirstAnimation, allocator: Allocator) void {

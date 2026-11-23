@@ -6,6 +6,7 @@ const SceneObject = @import("../SceneObject.zig");
 const RenderContext = @import("../RenderContext.zig");
 const Mesh = @import("Mesh.zig");
 const Skeleton = @import("../../animations/Skeleton.zig");
+const sampler = @import("../../animations/sampler.zig");
 const gltf_loader = @import("../gltf_loader.zig");
 
 const Allocator = std.mem.Allocator;
@@ -26,6 +27,8 @@ transform: Transform = .{},
 enable: bool = true,
 skeleton: Skeleton,
 meshes: ArrayList(*Mesh) = .empty,
+clip: ?usize = null,
+time: f32 = 0,
 
 pub fn init(
     allocator: Allocator,
@@ -33,6 +36,10 @@ pub fn init(
     depth_program: *Shader,
     model: *const gltf_loader.Model,
 ) !*AnimatedModel {
+    for (model.skins) |skin| {
+        if (skin.joints.len == 0 or skin.joints.len > Mesh.max_joints) return error.UnsupportedJointCount;
+    }
+
     const self = try allocator.create(AnimatedModel);
     errdefer allocator.destroy(self);
 
@@ -57,6 +64,7 @@ pub fn init(
             .diffuse_texture = null,
         };
         mesh.skeleton = &self.skeleton;
+        mesh.skin = findSkin(model, part.mesh);
 
         try self.meshes.append(allocator, mesh);
     }
@@ -86,9 +94,23 @@ pub fn renderShadow(ptr: *anyopaque, ctx: RenderContext) void {
     }
 }
 
-pub fn update(ptr: *anyopaque, _: f32) void {
+pub fn update(ptr: *anyopaque, dt: f32) void {
     const self: *AnimatedModel = @ptrCast(@alignCast(ptr));
+
+    if (self.clip) |index| {
+        const clip = &self.skeleton.model.clips[index];
+
+        if (clip.duration > 0) self.time = @mod(self.time + dt, clip.duration);
+
+        sampler.sample(clip, self.time, &self.skeleton);
+    }
+
     self.skeleton.update();
+}
+
+pub fn play(self: *AnimatedModel, clip: usize) void {
+    self.clip = clip;
+    self.time = 0;
 }
 
 pub fn getTransform(ptr: *anyopaque) *Transform {
@@ -113,6 +135,13 @@ pub fn deinit(ptr: *anyopaque, allocator: Allocator) void {
     self.deinitMeshes(allocator);
     self.skeleton.deinit(allocator);
     allocator.destroy(self);
+}
+
+fn findSkin(model: *const gltf_loader.Model, mesh: usize) ?usize {
+    for (model.nodes) |node| {
+        if (node.mesh == mesh) return node.skin;
+    }
+    return null;
 }
 
 fn deinitMeshes(self: *AnimatedModel, allocator: Allocator) void {
